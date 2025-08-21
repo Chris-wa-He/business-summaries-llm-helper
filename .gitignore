@@ -53,5 +53,8 @@ htmlcov/
 .pytest_cache/
 .mypy_cache/
 
+# Business data - do not commit actual business information
+history_references/
+
 # AWS credentials
 .aws/

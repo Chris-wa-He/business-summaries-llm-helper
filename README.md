@@ -35,19 +35,34 @@ curl -sSL https://install.python-poetry.org | python3 -
 poetry install
 ```
 
-### 3. 配置AWS凭证 / Configure AWS credentials
+### 3. 配置应用 / Configure Application
 
-#### 方式1: 使用AWS Profile (推荐 / Recommended)
+#### 创建配置文件 / Create Configuration File
+```bash
+# 复制配置模板 / Copy configuration template
+cp config.yaml.example config.yaml
+```
+
+#### 配置AWS凭证 / Configure AWS Credentials
+
+**方式1: 使用AWS Profile (推荐 / Recommended)**
 ```bash
 # 配置AWS CLI
 aws configure sso
-
-# 或使用传统方式
+# 或使用传统方式 / Or use traditional method
 aws configure
 ```
 
-#### 方式2: 使用Access Key
-编辑 `config.yaml` 文件：
+然后在 `config.yaml` 中设置：
+```yaml
+aws:
+  auth_method: "profile"
+  profile_name: "default"  # 或您的profile名称
+  region: "us-east-1"
+```
+
+**方式2: 使用Access Key**
+在 `config.yaml` 文件中设置：
 ```yaml
 aws:
   auth_method: "ak_sk"
@@ -56,8 +71,19 @@ aws:
   region: "us-east-1"
 ```
 
+⚠️ **安全提醒**: `config.yaml` 文件包含敏感信息，已在 `.gitignore` 中排除，不会上传到代码仓库。
+
 ### 4. 准备历史参考文件 / Prepare history reference files
-在 `history_references/` 目录中放置您的历史总结文件：
+创建 `history_references/` 目录并放置您的历史总结文件：
+```bash
+# 创建历史参考文件目录 / Create history references directory
+mkdir -p history_references
+
+# 复制示例文件作为参考 / Copy example files as reference
+cp -r history_references_example/* history_references/
+```
+
+目录结构示例 / Directory structure example:
 ```
 history_references/
 ├── category1/
@@ -66,6 +92,25 @@ history_references/
 └── category2/
     └── case_003.txt
 ```
+
+**注意**: `history_references/` 目录包含业务敏感信息，已在 `.gitignore` 中排除，不会上传到代码仓库。
+**Note**: The `history_references/` directory contains business-sensitive information and is excluded in `.gitignore`, so it won't be uploaded to the code repository.
+
+#### 历史文件设置详细说明 / Detailed History Files Setup
+
+**支持的文件格式 / Supported File Formats:**
+- `.txt` - 纯文本文件 / Plain text files
+- `.md` - Markdown文件 / Markdown files  
+- `.markdown` - Markdown文件 / Markdown files
+
+**文件组织建议 / File Organization Recommendations:**
+- 按类别分组（技术问题、业务案例、客户服务等）/ Group by category (technical issues, business cases, customer service, etc.)
+- 使用描述性的文件名 / Use descriptive file names
+- 推荐使用UTF-8编码 / Recommended to use UTF-8 encoding
+
+**安全提醒 / Security Reminder:**
+⚠️ 请确保不要将包含敏感业务信息的 `history_references/` 目录提交到公共代码仓库！
+⚠️ Please ensure that you do not commit the `history_references/` directory containing sensitive business information to public code repositories!
 
 ## 使用方法 / Usage
 
@@ -99,7 +144,7 @@ poetry run pytest
 poetry run pytest --cov=src --cov-report=html
 
 # 运行特定测试 / Run specific tests
-poetry run pytest tests/unit/test_config/ -v
+poetry run pytest tests/test_config/ -v
 ```
 
 ### 代码格式化 / Code formatting
@@ -215,7 +260,7 @@ poetry update
 poetry run pytest --cache-clear
 
 # 运行特定测试模块 / Run specific test module
-poetry run pytest tests/unit/test_config_manager.py -v
+poetry run pytest tests/test_config/test_config_manager.py -v
 ```
 
 ## 开发指南 / Development Guide

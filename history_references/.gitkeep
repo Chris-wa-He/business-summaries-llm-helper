@@ -1,0 +1,17 @@
+# 历史参考文件夹 / History references folder
+# 
+# 在此目录中放置您的历史总结文件，支持以下格式：
+# Place your historical summary files in this directory, supporting the following formats:
+# - .txt
+# - .md
+# - .docx (将在后续版本支持 / Will be supported in future versions)
+#
+# 建议的目录结构 / Recommended directory structure:
+# history_references/
+# ├── category1/
+# │   ├── case_001.txt
+# │   └── case_002.md
+# ├── category2/
+# │   └── case_003.txt
+# └── templates/
+#     └── summary_template.md

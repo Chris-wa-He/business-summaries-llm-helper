@@ -1,0 +1,85 @@
+# 案例总结生成器配置文件示例 / Case Summary Generator Configuration Example
+# 复制此文件为 config.yaml 并根据您的环境进行配置
+# Copy this file to config.yaml and configure according to your environment
+
+# AWS配置 / AWS Configuration
+aws:
+  # 认证方式：profile 或 ak_sk / Authentication method: profile or ak_sk
+  auth_method: "profile"  # 推荐使用 profile / Recommended to use profile
+  
+  # 使用profile时的配置 / Configuration when using profile
+  profile_name: "default"  # AWS CLI配置的profile名称 / AWS CLI configured profile name
+  
+  # 使用ak_sk时的配置 / Configuration when using ak_sk
+  # access_key_id: "your-access-key-id"
+  # secret_access_key: "your-secret-access-key"
+  
+  # AWS区域 / AWS Region
+  region: "us-east-1"  # 确保该区域支持Bedrock服务 / Ensure this region supports Bedrock service
+
+# 模型配置 / Model Configuration
+# 注意：应用会自动从AWS Bedrock获取可用模型列表
+# Note: The application will automatically retrieve available model list from AWS Bedrock
+models:
+  # 支持的模型提供商 / Supported model providers
+  supported_providers:
+    - "anthropic"    # Claude系列 / Claude series
+    - "amazon"       # Nova系列 / Nova series
+    - "deepseek"     # DeepSeek系列 / DeepSeek series
+    - "openai"       # OpenAI系列（如果在Bedrock中可用）/ OpenAI series (if available in Bedrock)
+
+# 系统提示词 / System Prompt
+# 可以根据您的具体需求进行自定义 / Can be customized according to your specific needs
+system_prompt: |
+  你是一个专业的案例总结助手。请根据提供的历史参考信息和新的案例输入，生成一个结构化、专业的案例总结。
+  
+  总结应该包含：
+  1. 案例概述
+  2. 关键要点
+  3. 分析结论
+  4. 建议措施
+  
+  请保持总结的客观性和专业性。
+
+# 历史参考文件夹 / History Reference Folder
+# 存放历史案例文件的目录路径 / Directory path for storing historical case files
+history_folder: "./history_references"
+
+# 应用设置 / Application Settings
+app:
+  # 应用标题 / Application title
+  title: "案例总结生成器 / Case Summary Generator"
+  
+  # 模型参数 / Model parameters
+  max_tokens: 4000      # 最大生成token数 / Maximum generation tokens
+  temperature: 0.7      # 温度参数，控制输出的随机性 / Temperature parameter, controls output randomness
+  
+  # 界面设置 / Interface settings
+  theme: "default"      # Gradio主题 / Gradio theme
+  share: false          # 是否创建公共链接 / Whether to create public link
+  server_name: "127.0.0.1"  # 服务器地址 / Server address
+  server_port: 7860     # 服务器端口 / Server port
+
+# 日志配置 / Logging Configuration
+logging:
+  level: "INFO"         # 日志级别：DEBUG, INFO, WARNING, ERROR / Log level: DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/app.log"  # 日志文件路径 / Log file path
+
+# 高级设置 / Advanced Settings
+advanced:
+  # 历史文件处理 / History file processing
+  max_history_files: 100        # 最大历史文件数量 / Maximum number of history files
+  max_file_size_mb: 10          # 单个文件最大大小(MB) / Maximum file size (MB)
+  supported_extensions:         # 支持的文件扩展名 / Supported file extensions
+    - ".txt"
+    - ".md"
+    - ".markdown"
+  
+  # 缓存设置 / Cache settings
+  enable_model_cache: true      # 启用模型列表缓存 / Enable model list cache
+  cache_ttl_minutes: 60         # 缓存过期时间(分钟) / Cache TTL (minutes)
+  
+  # 安全设置 / Security settings
+  max_prompt_length: 50000      # 最大prompt长度 / Maximum prompt length
+  rate_limit_requests: 100      # 每分钟最大请求数 / Maximum requests per minute

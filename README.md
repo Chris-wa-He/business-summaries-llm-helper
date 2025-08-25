@@ -312,7 +312,3 @@ The application uses a layered architecture design:
 
 欢迎提交问题和拉取请求！
 Issues and pull requests are welcome!
-
-## 联系方式 / Contact
-
-[添加联系信息 / Add contact information]

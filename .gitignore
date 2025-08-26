@@ -56,5 +56,9 @@ htmlcov/
 # Business data - do not commit actual business information
 history_references/
 
+# System prompts - only keep default, ignore user business prompts
+system_prompts/*
+!system_prompts/default.md
+
 # AWS credentials
 .aws/

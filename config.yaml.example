@@ -1,48 +1,88 @@
-# 案例总结生成器配置文件示例 / Case Summary Generator Configuration Example
-# 复制此文件为 config.yaml 并根据您的环境进行配置
-# Copy this file to config.yaml and configure according to your environment
+# 案例总结生成器配置文件 / Case Summary Generator Configuration File
+# 复制此文件为 config.yaml 并根据需要修改配置
+# Copy this file to config.yaml and modify the configuration as needed
 
 # AWS配置 / AWS Configuration
 aws:
-  # 认证方式：profile 或 ak_sk / Authentication method: profile or ak_sk
-  auth_method: "profile"  # 推荐使用 profile / Recommended to use profile
+  # 认证方式: "profile" 或 "ak_sk" / Authentication method: "profile" or "ak_sk"
+  auth_method: "profile"
   
-  # 使用profile时的配置 / Configuration when using profile
-  profile_name: "default"  # AWS CLI配置的profile名称 / AWS CLI configured profile name
+  # 使用AWS Profile时的配置 / Configuration when using AWS Profile
+  profile_name: "default"
   
-  # 使用ak_sk时的配置 / Configuration when using ak_sk
+  # 使用Access Key时的配置 / Configuration when using Access Key
   # access_key_id: "your-access-key-id"
   # secret_access_key: "your-secret-access-key"
   
   # AWS区域 / AWS Region
-  region: "us-east-1"  # 确保该区域支持Bedrock服务 / Ensure this region supports Bedrock service
+  region: "us-east-1"
 
 # 模型配置 / Model Configuration
-# 注意：应用会自动从AWS Bedrock获取可用模型列表
-# Note: The application will automatically retrieve available model list from AWS Bedrock
 models:
-  # 支持的模型提供商 / Supported model providers
-  supported_providers:
-    - "anthropic"    # Claude系列 / Claude series
-    - "amazon"       # Nova系列 / Nova series
-    - "deepseek"     # DeepSeek系列 / DeepSeek series
-    - "openai"       # OpenAI系列（如果在Bedrock中可用）/ OpenAI series (if available in Bedrock)
+  # Claude系列模型 / Claude Series Models
+  claude:
+    - id: "anthropic.claude-3-5-sonnet-20241022-v2:0"
+      name: "Claude 3.5 Sonnet"
+    - id: "anthropic.claude-3-haiku-20240307-v1:0"
+      name: "Claude 3 Haiku"
+    - id: "anthropic.claude-3-sonnet-20240229-v1:0"
+      name: "Claude 3 Sonnet"
+  
+  # Nova系列模型 / Nova Series Models
+  nova:
+    - id: "amazon.nova-pro-v1:0"
+      name: "Nova Pro"
+    - id: "amazon.nova-lite-v1:0"
+      name: "Nova Lite"
+    - id: "amazon.nova-micro-v1:0"
+      name: "Nova Micro"
+  
+  # DeepSeek系列模型 / DeepSeek Series Models
+  deepseek:
+    - id: "deepseek.deepseek-v2.5"
+      name: "DeepSeek V2.5"
+    - id: "deepseek.deepseek-v3"
+      name: "DeepSeek V3"
+  
+  # OpenAI系列模型 / OpenAI Series Models (如果在Bedrock中可用 / if available in Bedrock)
+  openai:
+    - id: "openai.gpt-4o"
+      name: "GPT-4o"
+    - id: "openai.gpt-4"
+      name: "GPT-4"
 
-# 系统提示词 / System Prompt
-# 可以根据您的具体需求进行自定义 / Can be customized according to your specific needs
-system_prompt: |
-  你是一个专业的案例总结助手。请根据提供的历史参考信息和新的案例输入，生成一个结构化、专业的案例总结。
+# 系统提示词管理配置 / System Prompt Management Configuration
+system_prompts:
+  # 系统提示词存储文件夹 / System prompts storage folder
+  prompts_folder: "./system_prompts"
   
-  总结应该包含：
-  1. 案例概述
-  2. 关键要点
-  3. 分析结论
-  4. 建议措施
+  # 当前激活的系统提示词 / Currently active system prompt
+  active_prompt: "default"
   
-  请保持总结的客观性和专业性。
+  # 默认系统提示词配置 / Default system prompt configuration
+  default_prompt:
+    name: "default"
+    content: |
+      你是一个专业的案例总结助手。请根据提供的历史参考信息和新的案例输入，生成一个结构化、专业的案例总结。
+      
+      需要按照历史参考的结构进行总结，在必要的地方以数据进行量化说明，总结确保简练明了。
+      
+      请保持总结的客观性和专业性。
+  
+  # 历史参考文件自动管理 / Automatic history reference file management
+  auto_create_history_folders: true
+  
+  # 提示词文件扩展名 / Prompt file extension
+  prompt_file_extension: ".md"
+  
+  # 缓存配置 / Cache configuration
+  cache_ttl: 300  # 缓存过期时间（秒） / Cache TTL in seconds
+  
+  # 安全配置 / Security configuration
+  max_prompt_name_length: 100      # 最大提示词名称长度 / Max prompt name length
+  max_prompt_content_length: 50000 # 最大提示词内容长度 / Max prompt content length
 
 # 历史参考文件夹 / History Reference Folder
-# 存放历史案例文件的目录路径 / Directory path for storing historical case files
 history_folder: "./history_references"
 
 # 应用设置 / Application Settings
@@ -51,35 +91,78 @@ app:
   title: "案例总结生成器 / Case Summary Generator"
   
   # 模型参数 / Model parameters
-  max_tokens: 4000      # 最大生成token数 / Maximum generation tokens
-  temperature: 0.7      # 温度参数，控制输出的随机性 / Temperature parameter, controls output randomness
+  max_tokens: 4000      # 最大生成token数 / Maximum tokens to generate
+  temperature: 0.7      # 生成温度 / Generation temperature
   
-  # 界面设置 / Interface settings
+  # 界面配置 / Interface configuration
   theme: "default"      # Gradio主题 / Gradio theme
-  share: false          # 是否创建公共链接 / Whether to create public link
-  server_name: "127.0.0.1"  # 服务器地址 / Server address
-  server_port: 7860     # 服务器端口 / Server port
-
-# 日志配置 / Logging Configuration
-logging:
-  level: "INFO"         # 日志级别：DEBUG, INFO, WARNING, ERROR / Log level: DEBUG, INFO, WARNING, ERROR
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file: "logs/app.log"  # 日志文件路径 / Log file path
-
-# 高级设置 / Advanced Settings
-advanced:
-  # 历史文件处理 / History file processing
-  max_history_files: 100        # 最大历史文件数量 / Maximum number of history files
-  max_file_size_mb: 10          # 单个文件最大大小(MB) / Maximum file size (MB)
-  supported_extensions:         # 支持的文件扩展名 / Supported file extensions
-    - ".txt"
-    - ".md"
-    - ".markdown"
+  show_api: false       # 是否显示API文档 / Whether to show API documentation
   
-  # 缓存设置 / Cache settings
-  enable_model_cache: true      # 启用模型列表缓存 / Enable model list cache
-  cache_ttl_minutes: 60         # 缓存过期时间(分钟) / Cache TTL (minutes)
+  # 性能配置 / Performance configuration
+  concurrent_limit: 10  # 并发请求限制 / Concurrent request limit
+  
+  # 日志配置 / Logging configuration
+  log_level: "INFO"     # 日志级别: DEBUG, INFO, WARNING, ERROR / Log level
+  log_file: "logs/app.log"  # 日志文件路径 / Log file path
+
+# 高级配置 / Advanced Configuration
+advanced:
+  # 开发模式 / Development mode
+  debug: false
+  
+  # 自动重载 / Auto reload
+  auto_reload: false
+  
+  # 性能监控 / Performance monitoring
+  enable_metrics: true
   
   # 安全设置 / Security settings
-  max_prompt_length: 50000      # 最大prompt长度 / Maximum prompt length
-  rate_limit_requests: 100      # 每分钟最大请求数 / Maximum requests per minute
+  enable_input_validation: true
+  enable_path_security_check: true
+  
+  # 备份设置 / Backup settings
+  auto_backup: false
+  backup_interval: 86400  # 备份间隔（秒） / Backup interval in seconds
+  backup_retention: 7     # 备份保留天数 / Backup retention days
+
+# 示例提示词配置 / Example Prompt Configurations
+# 取消注释以下部分来预定义一些提示词 / Uncomment the following section to predefine some prompts
+# example_prompts:
+#   technical_analysis:
+#     name: "技术分析专家"
+#     content: |
+#       你是一个资深的技术分析专家，专门分析技术问题、系统架构和解决方案。
+#       
+#       请根据历史技术案例，为新的技术问题提供：
+#       1. 问题根因分析
+#       2. 技术解决方案
+#       3. 实施建议
+#       4. 风险评估
+#       
+#       保持技术准确性和实用性。
+#   
+#   business_analysis:
+#     name: "商业分析师"
+#     content: |
+#       你是一个专业的商业分析师，擅长分析商业案例、市场趋势和业务策略。
+#       
+#       请基于历史商业案例，为新的商业问题提供：
+#       1. 市场环境分析
+#       2. 业务影响评估
+#       3. 解决方案建议
+#       4. 预期收益分析
+#       
+#       确保分析客观、数据驱动。
+#   
+#   customer_service:
+#     name: "客服专家"
+#     content: |
+#       你是一个专业的客户服务专家，擅长处理客户问题和提供优质服务。
+#       
+#       请根据历史客服案例，为新的客户问题提供：
+#       1. 问题理解和分类
+#       2. 解决方案建议
+#       3. 客户沟通策略
+#       4. 服务改进建议
+#       
+#       保持友好、专业和高效。

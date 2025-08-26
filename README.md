@@ -4,17 +4,25 @@
 
 A case summary generation application based on historical summary information, built with Gradio UI and integrated with multiple large language models on AWS Bedrock.
 
+[![Version](https://img.shields.io/badge/version-v1.1.0-blue.svg)](CHANGELOG.md)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](pyproject.toml)
+
 ## 功能特性 / Features
 
 - 🎯 基于历史参考信息生成专业案例总结 / Generate professional case summaries based on historical references
 - 🤖 支持多种AI模型：Claude、Nova、DeepSeek、OpenAI / Support multiple AI models: Claude, Nova, DeepSeek, OpenAI
+- 📝 **系统提示词管理**：创建、编辑、切换多个系统提示词 / **System Prompt Management**: Create, edit, and switch between multiple system prompts
+- 📁 **智能历史文件管理**：自动为每个提示词创建对应的历史参考文件夹 / **Smart History File Management**: Automatically create corresponding history reference folders for each prompt
 - 🌐 直观的Web界面，基于Gradio构建 / Intuitive web interface built with Gradio
 - ⚙️ 灵活的配置管理系统 / Flexible configuration management system
 - 🔐 支持多种AWS认证方式 / Support multiple AWS authentication methods
+- ⚡ 高性能缓存机制 / High-performance caching mechanism
+- 🛡️ 完善的输入验证和安全检查 / Comprehensive input validation and security checks
 
 ## 环境要求 / Requirements
 
-- Python 3.8+
+- Python 3.8.1+
 - Poetry (包管理器 / Package manager)
 - AWS账户和Bedrock访问权限 / AWS account with Bedrock access
 
@@ -22,8 +30,8 @@ A case summary generation application based on historical summary information, b
 
 ### 1. 克隆项目 / Clone the project
 ```bash
-git clone <repository-url>
-cd case-summary-generator
+git clone https://github.com/Chris-wa-He/business-summaries-llm-helper.git
+cd business-summaries-llm-helper
 ```
 
 ### 2. 安装依赖 / Install dependencies
@@ -129,6 +137,41 @@ poetry run python src/main.py --share
 poetry run python src/main.py --debug
 ```
 
+### 系统提示词管理 / System Prompt Management
+
+应用现在支持多个系统提示词的管理，每个提示词都有对应的历史参考文件夹：
+
+The application now supports management of multiple system prompts, each with its corresponding history reference folder:
+
+#### 创建新提示词 / Creating New Prompts
+1. 在Web界面中点击"新建提示词"按钮 / Click "New Prompt" button in the web interface
+2. 输入提示词名称和内容 / Enter prompt name and content
+3. 系统会自动创建对应的历史参考文件夹 / System automatically creates corresponding history reference folder
+
+#### 切换提示词 / Switching Prompts
+1. 使用提示词选择器选择不同的提示词 / Use prompt selector to choose different prompts
+2. 系统会自动切换到对应的历史参考文件夹 / System automatically switches to corresponding history folder
+3. 生成的总结会使用当前激活的提示词 / Generated summaries use the currently active prompt
+
+#### 管理提示词 / Managing Prompts
+- **编辑**: 直接在编辑器中修改提示词内容 / **Edit**: Modify prompt content directly in the editor
+- **保存**: 点击保存按钮保存更改 / **Save**: Click save button to save changes
+- **删除**: 使用删除按钮移除不需要的提示词 / **Delete**: Use delete button to remove unwanted prompts
+
+#### 历史文件组织 / History File Organization
+```
+history_references/
+├── default/                    # 默认提示词的历史文件
+│   ├── business_cases/
+│   └── technical_issues/
+├── technical_analysis/         # 技术分析提示词的历史文件
+│   ├── performance_cases/
+│   └── bug_reports/
+└── customer_service/          # 客服提示词的历史文件
+    ├── complaint_resolution/
+    └── service_improvement/
+```
+
 ### 命令行演示 / Command Line Demo
 ```bash
 # 运行命令行演示 / Run CLI demo
@@ -162,7 +205,7 @@ poetry run mypy src
 ## 项目结构 / Project Structure
 
 ```
-case-summary-generator/
+business-summaries-llm-helper/
 ├── src/                        # 源代码 / Source code
 │   ├── config/                 # 配置管理 / Configuration management
 │   │   └── config_manager.py   # 配置管理器 / Configuration manager
@@ -173,18 +216,36 @@ case-summary-generator/
 │   ├── services/               # 业务服务 / Business services
 │   │   ├── app_controller.py   # 应用控制器 / Application controller
 │   │   ├── model_manager.py    # 模型管理器 / Model manager
-│   │   └── prompt_builder.py   # Prompt构建器 / Prompt builder
+│   │   ├── prompt_builder.py   # Prompt构建器 / Prompt builder
+│   │   ├── system_prompt_manager.py # 系统提示词管理器 / System prompt manager
+│   │   └── system_prompt_service.py # 系统提示词服务 / System prompt service
 │   ├── ui/                     # 用户界面 / User interface
-│   │   └── gradio_interface.py # Gradio界面 / Gradio interface
+│   │   ├── gradio_interface.py # Gradio界面 / Gradio interface
+│   │   └── prompt_ui_components.py # 提示词UI组件 / Prompt UI components
+│   ├── exceptions/             # 异常定义 / Exception definitions
+│   │   └── system_prompt_exceptions.py # 系统提示词异常 / System prompt exceptions
+│   ├── models/                 # 数据模型 / Data models
+│   ├── utils/                  # 工具函数 / Utility functions
 │   ├── main.py                 # 应用入口 / Application entry
 │   └── cli_demo.py             # 命令行演示 / CLI demo
 ├── tests/                      # 测试代码 / Test code
 │   ├── unit/                   # 单元测试 / Unit tests
 │   ├── integration/            # 集成测试 / Integration tests
-│   └── e2e/                    # 端到端测试 / End-to-end tests
+│   ├── e2e/                    # 端到端测试 / End-to-end tests
+│   ├── performance/            # 性能测试 / Performance tests
+│   └── compatibility/          # 兼容性测试 / Compatibility tests
+├── docs/                       # 文档目录 / Documentation directory
+│   ├── SYSTEM_PROMPT_GUIDE.md  # 系统提示词使用指南 / System prompt guide
+│   ├── DEVELOPER_GUIDE.md      # 开发者指南 / Developer guide
+│   └── DOCUMENTATION_SUMMARY.md # 文档总结 / Documentation summary
 ├── history_references/         # 历史参考文件 / History reference files
+├── system_prompts/             # 系统提示词存储 / System prompts storage
 ├── config.yaml                 # 配置文件 / Configuration file
+├── config.yaml.example         # 配置文件示例 / Configuration example
 ├── pyproject.toml              # Poetry配置 / Poetry configuration
+├── LICENSE                     # MIT许可证 / MIT License
+├── CHANGELOG.md                # 变更日志 / Changelog
+├── TROUBLESHOOTING.md          # 故障排除指南 / Troubleshooting guide
 └── README.md                   # 项目说明 / Project documentation
 ```
 
@@ -207,9 +268,29 @@ models:
     - id: "amazon.nova-pro-v1:0"
       name: "Nova Pro"
 
-# 系统提示词 / System Prompt
-system_prompt: |
-  你是一个专业的案例总结助手。请根据提供的历史参考信息和新的案例输入，生成一个结构化、专业的案例总结。
+# 系统提示词管理配置 / System Prompt Management Configuration
+system_prompts:
+  # 系统提示词存储文件夹 / System prompts storage folder
+  prompts_folder: "./system_prompts"
+  
+  # 当前激活的系统提示词 / Currently active system prompt
+  active_prompt: "default"
+  
+  # 默认系统提示词配置 / Default system prompt configuration
+  default_prompt:
+    name: "default"
+    content: |
+      你是一个专业的案例总结助手。请根据提供的历史参考信息和新的案例输入，生成一个结构化、专业的案例总结。
+      
+      需要按照历史参考的结构进行总结，在必要的地方以数据进行量化说明，总结确保简练明了。
+      
+      请保持总结的客观性和专业性。
+  
+  # 历史参考文件自动管理 / Automatic history reference file management
+  auto_create_history_folders: true
+  
+  # 提示词文件扩展名 / Prompt file extension
+  prompt_file_extension: ".md"
 
 # 历史参考文件夹 / History Reference Folder
 history_folder: "./history_references"
@@ -306,7 +387,19 @@ The application uses a layered architecture design:
 
 ## 许可证 / License
 
-[添加许可证信息 / Add license information]
+本项目采用 MIT 许可证。详细信息请查看 [LICENSE](LICENSE) 文件。
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+### MIT License
+
+Copyright (c) 2025 Chris-wa-He
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## 贡献 / Contributing
 

@@ -37,7 +37,17 @@ After completing each task, you must:
 - Add necessary comments and documentation
 - Ensure error handling and edge case coverage
 
-### 5. Progress Management
+### 5. Strict Implementation Constraints
+**CRITICAL REQUIREMENT**: When implementing code, you must:
+- ⚠️ **Strictly adhere to requirements and design documents** - Only implement what is explicitly specified
+- 🚫 **Do NOT add any functionality not mentioned in requirements** - No additional features or enhancements
+- 🎯 **Focus solely on documented specifications** - Avoid any creative interpretations or assumptions
+- 📋 **Implement exactly what is requested** - No extra conveniences, utilities, or "nice-to-have" features
+- 🔒 **No arbitrary extensions or associations** - Do not add related functionality that seems logical but isn't specified
+
+**Violation of these constraints will result in implementation rejection and rework requirement.**
+
+### 6. Progress Management
 - Execute tasks sequentially, do not skip ahead
 - Record and report blocking issues promptly
 - Regularly update task completion status

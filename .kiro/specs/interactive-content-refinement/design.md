@@ -690,7 +690,358 @@ class ImpactLevel(Enum):
     CRITICAL = "critical"
 ```
 
-## 用户界面重新设计 / User Interface Redesign
+## 用户界面优化设计 / User Interface Enhancement Design
+
+### 1. 保守的界面集成方案 / Conservative Interface Integration Approach
+
+基于现有已测试通过的组件，采用最小化修改的方式集成交互式优化功能：
+
+```python
+class RefinementIntegrationInterface:
+    """交互式优化功能集成界面 - 保留现有组件"""
+    
+    def __init__(self, existing_gradio_interface: GradioInterface):
+        """基于现有界面进行扩展"""
+        self.existing_interface = existing_gradio_interface
+        self.app_controller = existing_gradio_interface.app_controller
+        
+    def integrate_refinement_features(self) -> gr.Blocks:
+        """在现有界面中集成优化功能"""
+        
+        # 保留现有的主界面结构
+        with gr.Blocks(
+            title=self.app_controller.get_app_config().get("title", "案例总结生成器"), 
+            theme=gr.themes.Soft()
+        ) as interface:
+            
+            # 保留现有的标题
+            gr.Markdown(
+                f"# {self.app_controller.get_app_config().get('title', '案例总结生成器 / Case Summary Generator')}"
+            )
+            
+            # 保留现有的主要功能区域
+            with gr.Row():
+                with gr.Column(scale=2):
+                    # 保留现有的案例输入区域
+                    case_input = gr.Textbox(
+                        label="案例输入 / Case Input",
+                        placeholder="请输入需要总结的案例内容... / Please enter the case content to summarize...",
+                        lines=8,
+                        max_lines=15,
+                    )
+                    
+                    # 保留现有的系统提示词管理（来自现有的prompt_ui组件）
+                    with gr.Group():
+                        gr.Markdown("### 系统提示词管理 / System Prompt Management")
+                        prompt_selector = self.existing_interface.prompt_ui.create_prompt_selector()
+                        prompt_editor = self.existing_interface.prompt_ui.create_prompt_editor()
+                        
+                        # 保留现有的提示词管理面板
+                        (
+                            management_panel,
+                            new_btn,
+                            save_btn,
+                            delete_btn,
+                            status_text,
+                        ) = self.existing_interface.prompt_ui.create_prompt_management_panel()
+                
+                with gr.Column(scale=1):
+                    # 保留现有的模型选择
+                    model_dropdown = gr.Dropdown(
+                        label="选择模型 / Select Model",
+                        choices=[],
+                        value=None,
+                        interactive=True,
+                    )
+                    
+                    # 保留现有的控制按钮
+                    with gr.Row():
+                        generate_btn = gr.Button(
+                            "生成总结 / Generate Summary", variant="primary"
+                        )
+                        refresh_btn = gr.Button(
+                            "刷新模型 / Refresh Models", variant="secondary"
+                        )
+                    
+                    # 保留现有的状态显示
+                    status_display = gr.Textbox(
+                        label="状态 / Status",
+                        value="就绪 / Ready",
+                        interactive=False,
+                        lines=2,
+                    )
+            
+            # 保留现有的输出区域，并添加优化功能
+            with gr.Row():
+                with gr.Column(scale=2):
+                    # 保留现有的输出文本框
+                    output_text = gr.Textbox(
+                        label="生成的案例总结 / Generated Case Summary",
+                        lines=12,
+                        max_lines=20,
+                        interactive=False,
+                    )
+                
+                # 新增：交互式优化区域（作为独立列）
+                with gr.Column(scale=1):
+                    self.create_refinement_panel()
+            
+            # 新增：版本管理区域（可折叠，不影响现有布局）
+            with gr.Accordion("📚 版本历史 / Version History", open=False):
+                self.create_version_management_panel()
+            
+            # 保留现有的事件绑定逻辑
+            self.bind_existing_events(
+                case_input, model_dropdown, prompt_editor, generate_btn, 
+                refresh_btn, output_text, status_display
+            )
+            
+            # 添加新的优化功能事件绑定
+            self.bind_refinement_events()
+            
+        return interface
+    
+    def create_refinement_panel(self):
+        """创建交互式优化面板"""
+        gr.Markdown("### 💬 内容优化 / Content Refinement")
+        
+        # 聊天历史显示
+        self.chat_history = gr.Chatbot(
+            label="对话历史 / Chat History",
+            height=300,
+            show_label=True,
+            bubble_full_width=False,
+            avatar_images=("👤", "🤖")
+        )
+        
+        # 用户输入区域
+        with gr.Row():
+            self.user_input = gr.Textbox(
+                placeholder="请描述您希望的修改... / Describe your desired changes...",
+                container=False,
+                scale=4,
+                show_label=False
+            )
+            self.send_btn = gr.Button("发送 / Send", variant="primary", scale=1)
+        
+        # 快捷操作按钮
+        with gr.Row():
+            self.add_detail_btn = gr.Button("➕ 添加细节", size="sm")
+            self.adjust_style_btn = gr.Button("🎨 调整风格", size="sm")
+            self.simplify_btn = gr.Button("✂️ 简化内容", size="sm")
+        
+        # 对话控制
+        with gr.Row():
+            self.clear_chat_btn = gr.Button("🗑️ 清空对话", size="sm")
+            self.undo_btn = gr.Button("↩️ 撤销修改", size="sm")
+    
+    def create_version_management_panel(self):
+        """创建版本管理面板"""
+        with gr.Row():
+            with gr.Column(scale=2):
+                self.version_list = gr.Dataframe(
+                    headers=["版本", "时间", "修改类型", "描述"],
+                    datatype=["str", "str", "str", "str"],
+                    label="版本列表 / Version List",
+                    interactive=True,
+                    height=150
+                )
+            
+            with gr.Column(scale=1):
+                with gr.Column():
+                    self.view_version_btn = gr.Button("👁️ 查看版本", size="sm")
+                    self.compare_btn = gr.Button("🔍 对比版本", size="sm")
+                    self.revert_btn = gr.Button("↩️ 回退版本", size="sm")
+                    self.milestone_btn = gr.Button("🏷️ 创建里程碑", size="sm")
+        
+        # 版本对比显示区域
+        self.version_diff_display = gr.HTML(
+            label="版本对比 / Version Comparison",
+            visible=False
+        )
+    
+    def bind_existing_events(self, case_input, model_dropdown, prompt_editor, 
+                           generate_btn, refresh_btn, output_text, status_display):
+        """绑定现有功能的事件（保持原有逻辑）"""
+        
+        # 保留现有的生成总结事件
+        generate_btn.click(
+            fn=self.existing_interface._generate_summary,
+            inputs=[case_input, model_dropdown, prompt_editor],
+            outputs=[output_text, status_display],
+        )
+        
+        # 保留现有的刷新模型事件
+        refresh_btn.click(
+            fn=self.existing_interface._refresh_models, 
+            outputs=[model_dropdown, status_display]
+        )
+        
+        # 保留现有的界面加载事件
+        # 这里会调用现有的初始化逻辑
+    
+    def bind_refinement_events(self):
+        """绑定新的优化功能事件"""
+        
+        # 发送消息事件
+        self.send_btn.click(
+            fn=self.handle_user_message,
+            inputs=[self.user_input],
+            outputs=[self.chat_history, self.user_input]
+        )
+        
+        # 快捷操作事件
+        self.add_detail_btn.click(
+            fn=lambda: self.handle_quick_suggestion("请添加更多细节和具体信息"),
+            outputs=[self.chat_history]
+        )
+        
+        self.adjust_style_btn.click(
+            fn=lambda: self.handle_quick_suggestion("请调整语言风格，使其更加专业"),
+            outputs=[self.chat_history]
+        )
+        
+        self.simplify_btn.click(
+            fn=lambda: self.handle_quick_suggestion("请简化内容，使其更加简洁明了"),
+            outputs=[self.chat_history]
+        )
+        
+        # 对话控制事件
+        self.clear_chat_btn.click(
+            fn=self.clear_chat_history,
+            outputs=[self.chat_history]
+        )
+        
+        # 版本管理事件
+        self.view_version_btn.click(
+            fn=self.view_selected_version,
+            inputs=[self.version_list],
+            outputs=[self.version_diff_display]
+        )
+        
+        self.compare_btn.click(
+            fn=self.compare_versions,
+            inputs=[self.version_list],
+            outputs=[self.version_diff_display]
+        )
+    
+    def handle_user_message(self, message: str):
+        """处理用户消息"""
+        if not message.strip():
+            return self.chat_history.value, ""
+        
+        # 添加用户消息到聊天历史
+        updated_history = self.chat_history.value + [(message, None)]
+        
+        # 这里会调用后端的优化处理逻辑
+        # ai_response = self.process_refinement_request(message)
+        ai_response = f"我理解您希望：{message}。让我来帮您优化内容。"
+        
+        # 添加AI响应
+        updated_history[-1] = (message, ai_response)
+        
+        return updated_history, ""  # 清空输入框
+    
+    def handle_quick_suggestion(self, suggestion: str):
+        """处理快捷建议"""
+        return self.handle_user_message(suggestion)[0]
+    
+    def clear_chat_history(self):
+        """清空聊天历史"""
+        return []
+```
+
+### 2. 个性化Prompt文件管理界面 / Personalized Prompt File Management Interface
+
+```python
+def create_personalized_prompt_management(self):
+    """创建个性化prompt管理界面（作为独立标签页）"""
+    
+    with gr.Tab("🎯 个性化Prompt / Personalized Prompts"):
+        gr.Markdown("### 个性化Prompt文件管理 / Personalized Prompt File Management")
+        
+        with gr.Row():
+            with gr.Column(scale=1):
+                # 当前用户的个性化prompt列表
+                gr.Markdown("#### 📋 我的个性化Prompt / My Personalized Prompts")
+                
+                self.personalized_prompt_list = gr.Dataframe(
+                    headers=["场景", "版本", "创建时间", "状态"],
+                    datatype=["str", "str", "str", "str"],
+                    label="个性化Prompt列表 / Personalized Prompt List",
+                    interactive=True
+                )
+                
+                with gr.Row():
+                    self.view_prompt_btn = gr.Button("👁️ 查看", size="sm")
+                    self.activate_prompt_btn = gr.Button("✅ 激活", size="sm")
+                    self.delete_prompt_btn = gr.Button("🗑️ 删除", size="sm")
+            
+            with gr.Column(scale=2):
+                # Prompt内容显示和编辑
+                gr.Markdown("#### 📝 Prompt内容 / Prompt Content")
+                
+                self.prompt_content_display = gr.Textbox(
+                    label="",
+                    lines=15,
+                    max_lines=20,
+                    interactive=False
+                )
+                
+                with gr.Row():
+                    self.edit_prompt_btn = gr.Button("✏️ 编辑", size="sm")
+                    self.save_prompt_btn = gr.Button("💾 保存", size="sm")
+                    self.export_prompt_btn = gr.Button("📤 导出", size="sm")
+        
+        # 导入导出区域
+        with gr.Accordion("📁 导入导出 / Import Export", open=False):
+            with gr.Row():
+                with gr.Column():
+                    gr.Markdown("#### 📤 导出个性化Prompt / Export Personalized Prompts")
+                    
+                    self.export_format = gr.Dropdown(
+                        choices=["JSON", "YAML"],
+                        value="JSON",
+                        label="导出格式 / Export Format"
+                    )
+                    
+                    self.export_all_btn = gr.Button("导出全部 / Export All", variant="primary")
+                    self.export_status = gr.Textbox(label="导出状态 / Export Status")
+                
+                with gr.Column():
+                    gr.Markdown("#### 📥 导入个性化Prompt / Import Personalized Prompts")
+                    
+                    self.import_file = gr.File(
+                        label="选择导入文件 / Select Import File",
+                        file_types=['.json', '.yaml']
+                    )
+                    
+                    self.import_btn = gr.Button("导入 / Import", variant="secondary")
+                    self.import_status = gr.Textbox(label="导入状态 / Import Status")
+```
+
+### 3. 最小化修改原则 / Minimal Modification Principles
+
+#### **保留现有组件**
+1. **完全保留**现有的GradioInterface类和所有已测试的组件
+2. **继承扩展**而不是重写，确保现有功能不受影响
+3. **增量添加**新功能，通过新的面板和标签页实现
+
+#### **功能集成策略**
+1. **侧边面板**：将聊天优化功能作为侧边面板添加
+2. **折叠区域**：版本管理等高级功能放在可折叠区域
+3. **独立标签页**：个性化prompt管理作为独立标签页
+
+#### **事件处理兼容**
+1. **保持现有事件绑定**不变
+2. **新增事件处理**通过新的方法实现
+3. **数据流隔离**，避免影响现有数据处理逻辑
+
+这样的设计确保了：
+- ✅ 现有功能完全不受影响
+- ✅ 新功能与后台服务正确对应
+- ✅ 用户界面清晰易懂
+- ✅ 开发风险最小化
 
 ### 1. 主界面布局重构 / Main Interface Layout Restructuring
 
@@ -1253,181 +1604,304 @@ def create_responsive_layout(self):
 
 这样重新设计的界面将大大提升用户体验，确保功能的可发现性和易用性！
 
-## 个性化指引生成机制 / Personalized Guidance Generation Mechanism
+## 个性化偏好学习的LLM总结机制 / LLM-based Personalized Preference Learning Mechanism
 
-### 1. 系统提示词级别的偏好区分 / Prompt-Level Preference Differentiation
+### 1. 基于LLM的偏好总结和Prompt生成 / LLM-based Preference Summarization and Prompt Generation
 
-系统为每个系统提示词维护独立的用户偏好模型，因为不同的提示词代表不同的使用场景和专业领域：
-
-```python
-class PromptSpecificGuidanceGenerator:
-    """系统提示词特定的指引生成器"""
-    
-    def __init__(self):
-        self.prompt_characteristics = {
-            "technical_analysis": {
-                "focus_areas": ["技术细节", "实现方案", "风险评估", "性能指标"],
-                "preferred_structure": ["问题分析", "技术方案", "实施步骤", "风险控制"],
-                "language_style": "technical_precise"
-            },
-            "business_analysis": {
-                "focus_areas": ["市场影响", "商业价值", "成本效益", "战略意义"],
-                "preferred_structure": ["背景分析", "影响评估", "解决方案", "预期收益"],
-                "language_style": "business_formal"
-            },
-            "customer_service": {
-                "focus_areas": ["客户体验", "问题解决", "服务质量", "满意度提升"],
-                "preferred_structure": ["问题理解", "解决方案", "沟通策略", "后续跟进"],
-                "language_style": "friendly_professional"
-            }
-        }
-    
-    def generate_prompt_specific_guidance(self, prompt_name: str, user_profile: UserPreferenceProfile, 
-                                        current_content: str) -> Dict[str, Any]:
-        """生成特定系统提示词的个性化指引"""
-        prompt_chars = self.prompt_characteristics.get(prompt_name, {})
-        
-        guidance = {
-            'content_focus_suggestions': self.suggest_content_focus(
-                prompt_chars.get('focus_areas', []), 
-                current_content, 
-                user_profile
-            ),
-            'structure_optimization': self.suggest_structure_optimization(
-                prompt_chars.get('preferred_structure', []), 
-                current_content, 
-                user_profile
-            ),
-            'style_alignment': self.suggest_style_alignment(
-                prompt_chars.get('language_style', 'neutral'), 
-                user_profile.style_preferences
-            ),
-            'domain_specific_enhancements': self.suggest_domain_enhancements(
-                prompt_name, current_content, user_profile
-            )
-        }
-        
-        return guidance
-```
-
-### 2. 持续学习和指引更新 / Continuous Learning and Guidance Updates
-
-系统通过多种方式持续学习用户偏好并更新指引：
+每次用户反馈后，系统调用LLM来总结用户偏好并生成个性化prompt文件：
 
 ```python
-class ContinuousLearningEngine:
-    """持续学习引擎"""
+class LLMBasedPreferenceLearning:
+    """基于LLM的偏好学习引擎"""
     
-    def __init__(self):
-        self.learning_triggers = [
-            'user_satisfaction_feedback',
-            'modification_acceptance_rate',
-            'interaction_completion_rate',
-            'content_quality_improvement'
-        ]
+    def __init__(self, bedrock_client: BedrockClient):
+        self.bedrock_client = bedrock_client
+        self.preference_prompt_template = """
+        基于以下用户交互历史和反馈，总结用户在{prompt_name}场景下的生成偏好：
+
+        ## 交互历史
+        {interaction_history}
+
+        ## 用户反馈
+        {user_feedback}
+
+        ## 当前偏好总结
+        {current_preference_summary}
+
+        请分析用户的偏好模式，并生成一个优化的系统提示词，包含：
+        1. 用户偏好的内容风格和结构
+        2. 用户常要求的修改类型
+        3. 用户满意的表达方式
+        4. 需要避免的内容特征
+
+        输出格式：
+        ## 偏好分析
+        [分析用户偏好模式]
+
+        ## 个性化系统提示词
+        [生成的个性化提示词内容]
+        """
     
-    def update_guidance_from_feedback(self, user_id: str, prompt_name: str, 
-                                    feedback_data: Dict) -> None:
-        """从用户反馈中更新指引"""
+    async def analyze_and_update_preference(self, user_id: str, prompt_name: str, 
+                                          interaction_data: Dict) -> Dict[str, Any]:
+        """分析用户交互并更新偏好"""
         
-        # 1. 分析用户满意度模式
-        satisfaction_patterns = self.analyze_satisfaction_patterns(feedback_data)
+        # 1. 收集用户交互历史
+        interaction_history = self.collect_interaction_history(user_id, prompt_name)
         
-        # 2. 识别成功的修改策略
-        successful_strategies = self.identify_successful_strategies(feedback_data)
+        # 2. 获取当前偏好总结
+        current_preference = self.load_current_preference(user_id, prompt_name)
         
-        # 3. 更新个性化指引权重
-        self.update_guidance_weights(user_id, prompt_name, successful_strategies)
-        
-        # 4. 生成新的指引规则
-        new_guidance_rules = self.generate_guidance_rules(satisfaction_patterns)
-        
-        # 5. 应用到用户偏好模型
-        self.apply_guidance_updates(user_id, prompt_name, new_guidance_rules)
-    
-    def generate_predictive_guidance(self, user_id: str, prompt_name: str, 
-                                   content_context: str) -> List[str]:
-        """生成预测性指引"""
-        user_profile = self.get_user_preference_profile(user_id, prompt_name)
-        
-        # 基于历史模式预测用户可能需要的修改
-        predicted_needs = self.predict_modification_needs(
-            user_profile.success_history, 
-            content_context
+        # 3. 构建LLM分析提示词
+        analysis_prompt = self.preference_prompt_template.format(
+            prompt_name=prompt_name,
+            interaction_history=self.format_interaction_history(interaction_history),
+            user_feedback=self.format_user_feedback(interaction_data),
+            current_preference_summary=current_preference.get('summary', '暂无偏好记录')
         )
         
-        guidance_suggestions = []
-        for need in predicted_needs:
-            suggestion = self.generate_proactive_suggestion(need, content_context)
-            guidance_suggestions.append(suggestion)
-        
-        return guidance_suggestions
-```
-
-### 3. 智能指引应用 / Intelligent Guidance Application
-
-系统在生成内容时会自动应用学习到的偏好指引：
-
-```python
-class GuidanceApplicationEngine:
-    """指引应用引擎"""
-    
-    def apply_guidance_to_generation(self, user_id: str, prompt_name: str, 
-                                   generation_request: Dict) -> Dict:
-        """将个性化指引应用到内容生成"""
-        
-        # 1. 获取用户偏好指引
-        guidance = self.preference_engine.generate_personalized_guidance(
-            user_id, prompt_name, 
-            generation_request['current_content'], 
-            generation_request['context']
+        # 4. 调用LLM进行偏好分析
+        llm_response = await self.bedrock_client.converse(
+            model_id="anthropic.claude-3-5-sonnet-20241022-v2:0",
+            messages=[{"role": "user", "content": analysis_prompt}],
+            system_prompt="你是一个专业的用户偏好分析专家，擅长从用户行为中总结个性化需求。",
+            max_tokens=2000,
+            temperature=0.3
         )
         
-        # 2. 构建增强的系统提示词
-        enhanced_prompt = self.build_enhanced_system_prompt(
-            prompt_name, guidance, generation_request
+        # 5. 解析LLM响应
+        preference_analysis = self.parse_llm_response(llm_response)
+        
+        # 6. 生成个性化prompt文件
+        personalized_prompt = self.create_personalized_prompt_file(
+            user_id, prompt_name, preference_analysis
         )
         
-        # 3. 调整生成参数
-        adjusted_params = self.adjust_generation_parameters(guidance)
-        
-        # 4. 添加后处理指令
-        post_processing_instructions = self.generate_post_processing_instructions(guidance)
+        # 7. 保存偏好更新
+        await self.save_preference_update(user_id, prompt_name, {
+            'analysis': preference_analysis,
+            'personalized_prompt': personalized_prompt,
+            'update_timestamp': datetime.now().isoformat(),
+            'interaction_data': interaction_data
+        })
         
         return {
-            'enhanced_system_prompt': enhanced_prompt,
-            'generation_parameters': adjusted_params,
-            'post_processing_instructions': post_processing_instructions,
-            'quality_checks': self.generate_quality_checks(guidance)
+            'success': True,
+            'preference_analysis': preference_analysis,
+            'personalized_prompt_file': personalized_prompt['file_path'],
+            'prompt_version': personalized_prompt['version']
         }
     
-    def build_enhanced_system_prompt(self, base_prompt_name: str, guidance: Dict, 
-                                   request: Dict) -> str:
-        """构建增强的系统提示词"""
-        base_prompt = self.system_prompt_manager.get_prompt_content(base_prompt_name)
+    def create_personalized_prompt_file(self, user_id: str, prompt_name: str, 
+                                      preference_analysis: Dict) -> Dict[str, Any]:
+        """创建个性化prompt文件"""
         
-        # 添加个性化指引
-        guidance_additions = []
+        # 1. 生成文件路径和版本
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        file_name = f"{user_id}_{prompt_name}_v{timestamp}.md"
+        file_path = Path(f"./personalized_prompts/{user_id}/{file_name}")
         
-        # 风格指引
-        if guidance['style_guidance']:
-            style_instruction = self.format_style_instruction(guidance['style_guidance'])
-            guidance_additions.append(f"语言风格要求：{style_instruction}")
+        # 2. 确保目录存在
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # 结构指引
-        if guidance['structure_suggestions']:
-            structure_instruction = self.format_structure_instruction(guidance['structure_suggestions'])
-            guidance_additions.append(f"内容结构建议：{structure_instruction}")
+        # 3. 构建文件内容
+        file_content = f"""# 个性化系统提示词 / Personalized System Prompt
+
+## 基本信息 / Basic Information
+- **用户ID**: {user_id}
+- **场景**: {prompt_name}
+- **版本**: {timestamp}
+- **创建时间**: {datetime.now().isoformat()}
+
+## 偏好分析 / Preference Analysis
+{preference_analysis.get('analysis', '')}
+
+## 个性化提示词 / Personalized Prompt
+{preference_analysis.get('personalized_prompt', '')}
+
+## 使用说明 / Usage Instructions
+此提示词基于用户的历史交互和反馈自动生成，会随着用户使用不断优化。
+This prompt is automatically generated based on user's historical interactions and feedback, and will be continuously optimized with usage.
+"""
         
-        # 修改偏好指引
-        if guidance['preferred_modification_types']:
-            mod_instruction = self.format_modification_instruction(guidance['preferred_modification_types'])
-            guidance_additions.append(f"修改偏好：{mod_instruction}")
+        # 4. 写入文件
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(file_content)
         
-        # 组合增强提示词
-        enhanced_prompt = f"{base_prompt}\n\n## 个性化指引\n" + "\n".join(guidance_additions)
+        # 5. 更新当前激活的个性化prompt
+        self.update_active_personalized_prompt(user_id, prompt_name, file_path)
         
-        return enhanced_prompt
+        return {
+            'file_path': str(file_path),
+            'file_name': file_name,
+            'version': timestamp,
+            'content': file_content
+        }
+    
+    def load_personalized_prompt(self, user_id: str, prompt_name: str) -> Optional[str]:
+        """加载用户的个性化prompt"""
+        try:
+            # 1. 获取当前激活的个性化prompt文件
+            active_prompt_file = self.get_active_personalized_prompt_file(user_id, prompt_name)
+            
+            if not active_prompt_file or not Path(active_prompt_file).exists():
+                return None
+            
+            # 2. 读取文件内容
+            with open(active_prompt_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 3. 提取个性化提示词部分
+            personalized_prompt = self.extract_personalized_prompt_from_file(content)
+            
+            return personalized_prompt
+            
+        except Exception as e:
+            logging.error(f"Failed to load personalized prompt for {user_id}/{prompt_name}: {e}")
+            return None
+    
+    def get_personalized_prompt_versions(self, user_id: str, prompt_name: str) -> List[Dict]:
+        """获取个性化prompt的版本列表"""
+        prompt_dir = Path(f"./personalized_prompts/{user_id}")
+        if not prompt_dir.exists():
+            return []
+        
+        versions = []
+        pattern = f"{user_id}_{prompt_name}_v*.md"
+        
+        for file_path in prompt_dir.glob(pattern):
+            version_info = self.parse_prompt_file_info(file_path)
+            versions.append(version_info)
+        
+        # 按版本时间排序
+        versions.sort(key=lambda x: x['version'], reverse=True)
+        return versions
+```
+
+### 2. 个性化Prompt文件管理 / Personalized Prompt File Management
+
+```python
+class PersonalizedPromptManager:
+    """个性化Prompt文件管理器"""
+    
+    def __init__(self, base_path: str = "./personalized_prompts"):
+        self.base_path = Path(base_path)
+        self.base_path.mkdir(parents=True, exist_ok=True)
+        
+    def export_personalized_prompts(self, user_id: str, export_format: str = 'json') -> Dict:
+        """导出用户的个性化prompt文件"""
+        user_dir = self.base_path / user_id
+        if not user_dir.exists():
+            return {'success': False, 'error': 'No personalized prompts found'}
+        
+        export_data = {
+            'user_id': user_id,
+            'export_timestamp': datetime.now().isoformat(),
+            'prompts': {}
+        }
+        
+        # 收集所有prompt文件
+        for prompt_file in user_dir.glob("*.md"):
+            prompt_info = self.parse_prompt_file_info(prompt_file)
+            prompt_name = prompt_info['prompt_name']
+            
+            if prompt_name not in export_data['prompts']:
+                export_data['prompts'][prompt_name] = []
+            
+            export_data['prompts'][prompt_name].append({
+                'version': prompt_info['version'],
+                'file_name': prompt_file.name,
+                'content': prompt_file.read_text(encoding='utf-8'),
+                'created_at': prompt_info['created_at']
+            })
+        
+        # 生成导出文件
+        export_filename = f"personalized_prompts_{user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{export_format}"
+        
+        if export_format == 'json':
+            export_content = json.dumps(export_data, ensure_ascii=False, indent=2)
+        elif export_format == 'yaml':
+            export_content = yaml.dump(export_data, allow_unicode=True, default_flow_style=False)
+        
+        return {
+            'success': True,
+            'filename': export_filename,
+            'content': export_content,
+            'data': export_data
+        }
+    
+    def import_personalized_prompts(self, import_data: Dict, target_user_id: str = None) -> Dict:
+        """导入个性化prompt文件"""
+        try:
+            user_id = target_user_id or import_data['user_id']
+            user_dir = self.base_path / user_id
+            user_dir.mkdir(parents=True, exist_ok=True)
+            
+            imported_count = 0
+            
+            for prompt_name, prompt_versions in import_data['prompts'].items():
+                for version_data in prompt_versions:
+                    # 重新生成文件名以避免冲突
+                    new_filename = f"{user_id}_{prompt_name}_imported_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+                    file_path = user_dir / new_filename
+                    
+                    # 写入文件
+                    file_path.write_text(version_data['content'], encoding='utf-8')
+                    imported_count += 1
+            
+            return {
+                'success': True,
+                'imported_count': imported_count,
+                'target_user': user_id
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+```
+
+### 3. 集成到现有系统提示词管理 / Integration with Existing System Prompt Management
+
+```python
+class EnhancedSystemPromptManager:
+    """增强的系统提示词管理器，集成个性化功能"""
+    
+    def __init__(self, config_manager, history_processor):
+        self.config_manager = config_manager
+        self.history_processor = history_processor
+        self.personalized_prompt_manager = PersonalizedPromptManager()
+        self.llm_preference_learning = LLMBasedPreferenceLearning(bedrock_client)
+    
+    def get_effective_prompt(self, user_id: str, prompt_name: str) -> str:
+        """获取有效的提示词（优先使用个性化版本）"""
+        
+        # 1. 尝试加载个性化prompt
+        personalized_prompt = self.personalized_prompt_manager.load_personalized_prompt(
+            user_id, prompt_name
+        )
+        
+        if personalized_prompt:
+            return personalized_prompt
+        
+        # 2. 回退到基础系统提示词
+        base_prompt = self.get_base_prompt(prompt_name)
+        return base_prompt
+    
+    async def update_preference_from_feedback(self, user_id: str, prompt_name: str, 
+                                           feedback_data: Dict) -> None:
+        """根据用户反馈更新偏好"""
+        
+        # 调用LLM进行偏好分析和prompt生成
+        result = await self.llm_preference_learning.analyze_and_update_preference(
+            user_id, prompt_name, feedback_data
+        )
+        
+        if result['success']:
+            logging.info(f"Updated personalized prompt for {user_id}/{prompt_name}")
+        else:
+            logging.error(f"Failed to update personalized prompt: {result.get('error')}")
 ```
 
 ## 核心算法设计 / Core Algorithm Design

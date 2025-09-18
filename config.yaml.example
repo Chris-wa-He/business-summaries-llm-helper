@@ -105,7 +105,52 @@ app:
   log_level: "INFO"     # 日志级别: DEBUG, INFO, WARNING, ERROR / Log level
   log_file: "logs/app.log"  # 日志文件路径 / Log file path
 
-# 高级配置 / Advanced Configuration
+# 交互式内容优化配置 / Interactive Content Refinement Configuration
+interactive_refinement:
+  # 对话管理配置 / Conversation management configuration
+  conversation:
+    max_sessions_per_user: 5      # 每用户最大会话数 / Max sessions per user
+    session_timeout: 3600         # 会话超时时间（秒）/ Session timeout in seconds
+    max_messages_per_session: 100 # 每会话最大消息数 / Max messages per session
+    context_window_size: 10       # 上下文窗口大小 / Context window size
+  
+  # 版本管理配置 / Version management configuration
+  version:
+    max_versions_per_session: 50  # 每会话最大版本数 / Max versions per session
+    auto_cleanup_enabled: true    # 自动清理启用 / Auto cleanup enabled
+    milestone_retention_days: 30  # 里程碑保留天数 / Milestone retention days
+  
+  # 个性化学习配置 / Personalized learning configuration
+  personalization:
+    enable_preference_learning: true    # 启用偏好学习 / Enable preference learning
+    min_interactions_for_learning: 5    # 学习所需最少交互数 / Min interactions for learning
+    preference_update_threshold: 0.1    # 偏好更新阈值 / Preference update threshold
+    max_personalized_prompts: 20        # 最大个性化提示词数 / Max personalized prompts
+  
+  # 性能配置 / Performance configuration
+  performance:
+    max_concurrent_modifications: 10    # 最大并发修改数 / Max concurrent modifications
+    cache_ttl: 3600                    # 缓存生存时间 / Cache TTL
+    async_processing_enabled: true     # 异步处理启用 / Async processing enabled
+    enable_smart_caching: true         # 启用智能缓存 / Enable smart caching
+  
+  # 安全配置 / Security configuration
+  security:
+    input_validation_enabled: true     # 输入验证启用 / Input validation enabled
+    max_message_length: 2000          # 最大消息长度 / Max message length
+    enable_xss_protection: true       # XSS保护启用 / XSS protection enabled
+    enable_rate_limiting: true        # 速率限制启用 / Rate limiting enabled
+    rate_limit_per_minute: 100        # 每分钟速率限制 / Rate limit per minute
+  
+  # 数据管理配置 / Data management configuration
+  data_management:
+    enable_auto_backup: true          # 自动备份启用 / Auto backup enabled
+    backup_interval_hours: 24         # 备份间隔小时 / Backup interval hours
+    max_backup_files: 7               # 最大备份文件数 / Max backup files
+    enable_data_encryption: false     # 数据加密启用 / Data encryption enabled
+    export_formats: ["json", "yaml"]   # 支持的导出格式 / Supported export formats
+
+
 advanced:
   # 开发模式 / Development mode
   debug: false

@@ -14,11 +14,14 @@ A case summary generation application based on historical summary information, b
 - 🤖 支持多种AI模型：Claude、Nova、DeepSeek、OpenAI / Support multiple AI models: Claude, Nova, DeepSeek, OpenAI
 - 📝 **系统提示词管理**：创建、编辑、切换多个系统提示词 / **System Prompt Management**: Create, edit, and switch between multiple system prompts
 - 📁 **智能历史文件管理**：自动为每个提示词创建对应的历史参考文件夹 / **Smart History File Management**: Automatically create corresponding history reference folders for each prompt
+- 💬 **交互式内容优化**：通过聊天界面与AI进行多轮对话优化内容 / **Interactive Content Refinement**: Multi-turn conversation with AI through chat interface for content optimization
+- 📚 **版本管理**：自动版本控制、历史对比、版本回退 / **Version Management**: Automatic version control, history comparison, version rollback
+- 🎯 **个性化学习**：基于用户偏好的智能学习和建议 / **Personalized Learning**: Intelligent learning and suggestions based on user preferences
+- 🔒 **安全验证**：完善的输入验证和安全检查 / **Security Validation**: Comprehensive input validation and security checks
+- ⚡ **性能优化**：异步处理、智能缓存、错误恢复 / **Performance Optimization**: Async processing, smart caching, error recovery
 - 🌐 直观的Web界面，基于Gradio构建 / Intuitive web interface built with Gradio
 - ⚙️ 灵活的配置管理系统 / Flexible configuration management system
 - 🔐 支持多种AWS认证方式 / Support multiple AWS authentication methods
-- ⚡ 高性能缓存机制 / High-performance caching mechanism
-- 🛡️ 完善的输入验证和安全检查 / Comprehensive input validation and security checks
 
 ## 环境要求 / Requirements
 

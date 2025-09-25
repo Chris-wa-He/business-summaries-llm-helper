@@ -33,11 +33,20 @@ class TestGradioInterface:
         assert interface.interface is None
     
     @patch('src.ui.gradio_interface.gr')
-    def test_create_interface(self, mock_gr):
+    @patch('src.ui.prompt_ui_components.PromptUIComponents')
+    def test_create_interface(self, mock_prompt_ui, mock_gr):
         """测试创建界面 / Test creating interface"""
         # 设置mock / Setup mock
         mock_blocks = Mock()
         mock_gr.Blocks.return_value.__enter__.return_value = mock_blocks
+        
+        # Mock prompt UI components
+        mock_prompt_ui_instance = Mock()
+        mock_prompt_ui.return_value = mock_prompt_ui_instance
+        mock_prompt_ui_instance.create_prompt_selector.return_value = Mock()
+        mock_prompt_ui_instance.create_prompt_editor.return_value = Mock()
+        mock_prompt_ui_instance.create_prompt_management_panel.return_value = (Mock(), Mock(), Mock(), Mock(), Mock())
+        mock_prompt_ui_instance.create_new_prompt_dialog.return_value = (Mock(), Mock(), Mock(), Mock(), Mock())
         
         interface = GradioInterface(self.mock_app_controller)
         result = interface.create_interface()
@@ -61,7 +70,7 @@ class TestGradioInterface:
         result_summary, result_status = interface._generate_summary(
             case_input="Test case input",
             model_id="test-model-id",
-            system_prompt="Test system prompt"
+            prompt_content="Test system prompt"
         )
         
         assert result_summary == "Generated summary content"
@@ -81,7 +90,7 @@ class TestGradioInterface:
         result_summary, result_status = interface._generate_summary(
             case_input="",
             model_id="test-model-id",
-            system_prompt=""
+            prompt_content=""
         )
         
         assert result_summary == ""
@@ -98,7 +107,7 @@ class TestGradioInterface:
         result_summary, result_status = interface._generate_summary(
             case_input="Test case input",
             model_id="",
-            system_prompt=""
+            prompt_content=""
         )
         
         assert result_summary == ""
@@ -118,7 +127,7 @@ class TestGradioInterface:
         result_summary, result_status = interface._generate_summary(
             case_input="Test case input",
             model_id="test-model-id",
-            system_prompt=""
+            prompt_content=""
         )
         
         assert result_summary == ""
@@ -135,7 +144,7 @@ class TestGradioInterface:
         result_summary, result_status = interface._generate_summary(
             case_input="Test case input",
             model_id="test-model-id",
-            system_prompt=""
+            prompt_content=""
         )
         
         assert result_summary == ""

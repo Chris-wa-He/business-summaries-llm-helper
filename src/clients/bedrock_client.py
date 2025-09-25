@@ -482,24 +482,60 @@ class BedrockClient:
             if system_prompt and system_prompt.strip():
                 request_params["system"] = [{"text": system_prompt.strip()}]
 
-            self.logger.debug(f"调用模型: {model_id} / Invoking model: {model_id}")
+            # 记录请求日志 / Log request
+            self.logger.info(f"LLM请求 - 模型: {model_id}, 消息数: {len(messages)}, max_tokens: {max_tokens}, temperature: {temperature} / LLM Request - Model: {model_id}, Messages: {len(messages)}, max_tokens: {max_tokens}, temperature: {temperature}")
+            
+            # 记录完整的请求payload / Log complete request payload
+            self.logger.info(f"LLM请求Payload: {json.dumps(request_params, ensure_ascii=False, indent=2)} / LLM Request Payload: {json.dumps(request_params, ensure_ascii=False, indent=2)}")
+            
+            # 记录系统提示词长度 / Log system prompt length
+            if system_prompt:
+                self.logger.debug(f"LLM请求 - 系统提示词长度: {len(system_prompt)} 字符 / LLM Request - System prompt length: {len(system_prompt)} chars")
+                self.logger.debug(f"LLM请求 - 系统提示词内容: {system_prompt} / LLM Request - System prompt content: {system_prompt}")
+            
+            # 记录消息内容概要 / Log message content summary
+            for i, msg in enumerate(messages):
+                content = msg.get('content', [{}])[0].get('text', '') if msg.get('content') else ''
+                content_preview = content[:100] + '...' if len(content) > 100 else content
+                self.logger.debug(f"LLM请求 - 消息[{i}] ({msg.get('role', 'unknown')}): {content_preview} / LLM Request - Message[{i}] ({msg.get('role', 'unknown')}): {content_preview}")
+                # 记录完整消息内容 / Log complete message content
+                self.logger.debug(f"LLM请求 - 消息[{i}]完整内容: {json.dumps(msg, ensure_ascii=False, indent=2)} / LLM Request - Message[{i}] full content: {json.dumps(msg, ensure_ascii=False, indent=2)}")
 
             # 调用Converse API / Call Converse API
             response = self.bedrock_runtime_client.converse(**request_params)
-            return self._parse_converse_response(response)
+            
+            # 记录响应日志 / Log response
+            usage = response.get('usage', {})
+            input_tokens = usage.get('inputTokens', 0)
+            output_tokens = usage.get('outputTokens', 0)
+            total_tokens = usage.get('totalTokens', 0)
+            
+            self.logger.info(f"LLM响应 - 模型: {model_id}, 输入tokens: {input_tokens}, 输出tokens: {output_tokens}, 总tokens: {total_tokens} / LLM Response - Model: {model_id}, Input tokens: {input_tokens}, Output tokens: {output_tokens}, Total tokens: {total_tokens}")
+            
+            # 记录完整的响应payload / Log complete response payload
+            self.logger.info(f"LLM响应Payload: {json.dumps(response, ensure_ascii=False, indent=2)} / LLM Response Payload: {json.dumps(response, ensure_ascii=False, indent=2)}")
+            
+            # 解析响应内容 / Parse response content
+            response_content = self._parse_converse_response(response)
+            
+            # 记录响应内容概要 / Log response content summary
+            content_preview = response_content[:200] + '...' if len(response_content) > 200 else response_content
+            self.logger.debug(f"LLM响应内容概要: {content_preview} / LLM Response content summary: {content_preview}")
+            
+            return response_content
 
         except ClientError as e:
             error_code = e.response["Error"]["Code"]
             error_message = e.response["Error"]["Message"]
             self.logger.error(
-                f"模型调用失败 - AWS错误: {error_code}: {error_message} / Model invocation failed - AWS error: {error_code}: {error_message}"
+                f"LLM调用失败 - AWS错误: {error_code}: {error_message} / LLM invocation failed - AWS error: {error_code}: {error_message}"
             )
             raise ModelInvocationError(
                 f"AWS API错误: {error_code} - {error_message} / AWS API error: {error_code} - {error_message}"
             )
         except Exception as e:
-            self.logger.error(f"模型调用失败: {e} / Model invocation failed: {e}")
-            raise ModelInvocationError(f"模型调用失败: {e} / Model invocation failed: {e}")
+            self.logger.error(f"LLM调用失败: {e} / LLM invocation failed: {e}")
+            raise ModelInvocationError(f"LLM调用失败: {e} / LLM invocation failed: {e}")
 
     def _parse_converse_response(self, response: Dict[str, Any]) -> str:
         """

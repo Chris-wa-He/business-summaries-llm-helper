@@ -44,6 +44,9 @@ class AppController:
         self.bedrock_client = None
         self.model_manager = None
         self.system_prompt_manager = None
+        
+        # 交互式优化组件 / Interactive refinement components
+        self.refinement_controller = None
 
         # 应用状态 / Application state
         self.is_initialized = False
@@ -502,3 +505,64 @@ class AppController:
                 False,
                 "应用未初始化或初始化失败 / Application not initialized or initialization failed",
             )
+    
+    def get_refinement_controller(self):
+        """
+        获取交互式优化控制器（延迟初始化） / Get refinement controller (lazy initialization)
+        
+        Returns:
+            RefinementController实例 / RefinementController instance
+        """
+        if not self.is_initialized:
+            raise CaseSummaryError("应用未初始化 / Application not initialized")
+            
+        if self.refinement_controller is None:
+            try:
+                # 延迟导入以避免循环依赖 / Lazy import to avoid circular dependency
+                from src.services.refinement_controller import RefinementController
+                self.refinement_controller = RefinementController(self)
+                self.logger.info("交互式优化控制器初始化成功 / Refinement controller initialized successfully")
+            except Exception as e:
+                self.logger.error(f"交互式优化控制器初始化失败: {e} / Refinement controller initialization failed: {e}")
+                raise CaseSummaryError(f"交互式优化控制器初始化失败: {e} / Refinement controller initialization failed: {e}")
+        
+        return self.refinement_controller
+    
+    def start_refinement_session(self, initial_content: str, user_id: str = "default_user") -> str:
+        """
+        启动交互式优化会话 / Start interactive refinement session
+        
+        Args:
+            initial_content: 初始内容 / Initial content
+            user_id: 用户ID / User ID
+            
+        Returns:
+            会话 ID / Session ID
+        """
+        try:
+            refinement_controller = self.get_refinement_controller()
+            return refinement_controller.start_refinement_session(initial_content, user_id)
+        except Exception as e:
+            self.logger.error(f"启动优化会话失败: {e} / Failed to start refinement session: {e}")
+            raise CaseSummaryError(f"启动优化会话失败: {e} / Failed to start refinement session: {e}")
+    
+    def process_refinement_message(self, message: str, session_id: str) -> Dict[str, Any]:
+        """
+        处理交互式优化消息 / Process interactive refinement message
+        
+        Args:
+            message: 用户消息 / User message
+            session_id: 会话 ID / Session ID
+            
+        Returns:
+            处理结果 / Processing result
+        """
+        try:
+            refinement_controller = self.get_refinement_controller()
+            return refinement_controller.process_user_message(message, session_id)
+        except Exception as e:
+            self.logger.error(f"处理优化消息失败: {e} / Failed to process refinement message: {e}")
+            return {
+                'success': False,
+                'error': f"处理失败: {str(e)} / Processing failed: {str(e)}"
+            }

@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "case-summary-generator"
-version = "0.1.0"
-description = "基于历史总结信息的案例总结生成应用 / Case summary generator based on historical summary information"
+version = "2.0.0"
+description = "基于历史总结信息的案例总结生成应用，支持交互式内容优化 / Case summary generator with interactive content refinement based on historical summary information"
 authors = ["Developer <developer@example.com>"]
 readme = "README.md"
 packages = [{include = "src"}]

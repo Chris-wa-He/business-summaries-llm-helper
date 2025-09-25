@@ -7,9 +7,16 @@ Web user interface built with Gradio
 
 import gradio as gr
 import logging
+import hashlib
+import uuid
 from typing import Optional, Tuple, List
-from src.services.app_controller import AppController, CaseSummaryError
-from src.ui.prompt_ui_components import PromptUIComponents
+
+try:
+    from services.app_controller import AppController
+    from services.refinement_controller import RefinementController
+except ImportError:
+    from src.services.app_controller import AppController
+    from src.services.refinement_controller import RefinementController
 
 
 class GradioInterface:
@@ -24,9 +31,15 @@ class GradioInterface:
         """
         self.app_controller = app_controller
         self.logger = logging.getLogger(__name__)
-
-        # 初始化提示词UI组件 / Initialize prompt UI components
-        self.prompt_ui = PromptUIComponents(app_controller)
+        
+        # 初始化优化控制器 / Initialize refinement controller
+        self.refinement_controller = RefinementController(app_controller)
+        
+        # 当前优化会话ID / Current refinement session ID
+        self.current_session_id = None
+        
+        # 当前用户ID / Current user ID
+        self.current_user_id = "default_user"
 
         # 获取应用配置 / Get app configuration
         self.app_config = app_controller.get_app_config()
@@ -48,9 +61,29 @@ class GradioInterface:
             gr.Markdown(
                 f"# {self.app_config.get('title', '案例总结生成器 / Case Summary Generator')}"
             )
-
+            
+            # 用户选择区域 / User selection area
             with gr.Row():
-                with gr.Column(scale=2):
+                with gr.Column(scale=3):
+                    user_selector = gr.Dropdown(
+                        label="选择用户 / Select User",
+                        choices=self._get_user_choices(),
+                        value="default_user",
+                        interactive=True,
+                        allow_custom_value=True
+                    )
+                with gr.Column(scale=1):
+                    new_user_name = gr.Textbox(
+                        placeholder="输入新用户名... / Enter new user name...",
+                        container=False,
+                        scale=2
+                    )
+                    create_user_btn = gr.Button("新建用户 / Create User", size="sm", scale=1)
+
+            # 主要功能区域 / Main functional area
+            with gr.Row():
+                # 左侧：输入区域 / Left: Input area
+                with gr.Column(scale=1):
                     # 案例输入区域 / Case input area
                     case_input = gr.Textbox(
                         label="案例输入 / Case Input",
@@ -58,36 +91,7 @@ class GradioInterface:
                         lines=8,
                         max_lines=15,
                     )
-
-                    # 系统提示词管理 / System prompt management
-                    with gr.Group():
-                        gr.Markdown("### 系统提示词管理 / System Prompt Management")
-
-                        # 提示词选择器 / Prompt selector
-                        prompt_selector = self.prompt_ui.create_prompt_selector()
-
-                        # 提示词编辑器 / Prompt editor
-                        prompt_editor = self.prompt_ui.create_prompt_editor()
-
-                        # 提示词管理面板 / Prompt management panel
-                        (
-                            management_panel,
-                            new_btn,
-                            save_btn,
-                            delete_btn,
-                            status_text,
-                        ) = self.prompt_ui.create_prompt_management_panel()
-
-                        # 新建提示词对话框 / New prompt dialog
-                        (
-                            new_dialog,
-                            name_input,
-                            content_input,
-                            create_btn,
-                            cancel_btn,
-                        ) = self.prompt_ui.create_new_prompt_dialog()
-
-                with gr.Column(scale=1):
+                    
                     # 模型选择 / Model selection
                     model_dropdown = gr.Dropdown(
                         label="选择模型 / Select Model",
@@ -95,16 +99,33 @@ class GradioInterface:
                         value=None,
                         interactive=True,
                     )
-
+                    
+                    # 系统提示词选择器 / System prompt selector
+                    prompt_selector = gr.Dropdown(
+                        label="选择系统提示词 / Select System Prompt",
+                        choices=self._get_prompt_choices(),
+                        value=self._get_active_prompt_name(),
+                        interactive=True,
+                    )
+                    
+                    # 提示词编辑器 / Prompt editor
+                    prompt_editor = gr.Textbox(
+                        label="系统提示词内容 / System Prompt Content",
+                        value=self._get_default_system_prompt(),
+                        lines=5,
+                        max_lines=10,
+                    )
+                    
                     # 控制按钮 / Control buttons
                     with gr.Row():
                         generate_btn = gr.Button(
-                            "生成总结 / Generate Summary", variant="primary"
+                            "🚀 生成案例总结 / Generate Case Summary", 
+                            variant="primary"
                         )
-                        refresh_btn = gr.Button(
-                            "刷新模型 / Refresh Models", variant="secondary"
-                        )
-
+                        refresh_btn = gr.Button("🔄 刷新模型 / Refresh Models")
+                
+                # 右侧：结果显示区域 / Right: Results display area
+                with gr.Column(scale=2):
                     # 状态显示 / Status display
                     status_text = gr.Textbox(
                         label="状态 / Status",
@@ -112,71 +133,384 @@ class GradioInterface:
                         interactive=False,
                         lines=2,
                     )
+                    
+                    # 结果显示区域 / Results display area
+                    output_text = gr.Textbox(
+                        label="生成的案例总结 / Generated Case Summary",
+                        lines=12,
+                        max_lines=20,
+                        interactive=False,
+                    )
+                    
+                    # 交互优化区域 / Interactive refinement area
+                    with gr.Group():
+                        gr.Markdown("### 💬 交互优化 / Interactive Refinement")
+                        
+                        # 智能建议区域 / Smart suggestions area
+                        with gr.Group():
+                            gr.Markdown("#### 🎯 智能建议 / Smart Suggestions")
+                            suggestions_display = gr.HTML(
+                                value="<p style='color: #666; font-style: italic;'>生成内容后将显示智能建议... / Smart suggestions will appear after content generation...</p>",
+                                label=""
+                            )
+                            refresh_suggestions_btn = gr.Button("🔄 刷新建议 / Refresh Suggestions", size="sm")
+                        
+                        # 简化的聊天区域
+                        chat_display = gr.Textbox(
+                            label="对话记录 / Chat Record",
+                            lines=6,
+                            interactive=False,
+                            placeholder="对话记录将在这里显示... / Chat records will be displayed here..."
+                        )
+                        
+                        # 用户输入 / User input
+                        with gr.Row():
+                            user_input = gr.Textbox(
+                                placeholder="请描述您希望的修改... / Describe your desired changes...",
+                                container=False,
+                                scale=4,
+                                show_label=False
+                            )
+                            send_btn = gr.Button("发送 / Send", variant="primary", scale=1)
+                        
+                        # 快捷操作 / Quick actions
+                        with gr.Row():
+                            add_detail_btn = gr.Button("➕ 添加细节", size="sm")
+                            adjust_style_btn = gr.Button("🎨 调整风格", size="sm")
+                            simplify_btn = gr.Button("✂️ 简化内容", size="sm")
 
-            # 输出区域 / Output area
-            with gr.Row():
-                output_text = gr.Textbox(
-                    label="生成的案例总结 / Generated Case Summary",
-                    lines=12,
-                    max_lines=20,
-                    interactive=False,
-                )
-
+            # 简化的事件处理函数 / Simplified event handlers
+            def generate_summary(case_input, model_id, prompt_content):
+                try:
+                    if not case_input or not case_input.strip():
+                        return "", "❌ 案例输入不能为空", gr.update()
+                    if not model_id:
+                        return "", "❌ 请选择一个模型", gr.update()
+                    
+                    # 重置优化会话 / Reset refinement session
+                    self.current_session_id = None
+                    
+                    summary = self.app_controller.process_case_summary(
+                        case_input=case_input,
+                        model_id=model_id,
+                        custom_system_prompt=prompt_content.strip() if prompt_content.strip() else None,
+                    )
+                    
+                    # 启动优化会话并生成智能建议 / Start refinement session and generate smart suggestions
+                    if summary:
+                        self.current_session_id = self.refinement_controller.start_refinement_session(
+                            initial_content=summary,
+                            user_id=self.current_user_id,
+                            original_context=case_input
+                        )
+                        suggestions_html = self.generate_suggestions_html()
+                    else:
+                        suggestions_html = "<p style='color: #666;'>生成失败，无法提供建议</p>"
+                    
+                    return summary, "✅ 生成成功", gr.update(value=suggestions_html)
+                except Exception as e:
+                    return "", f"❌ 错误: {str(e)}", gr.update()
+            
+            def refresh_models():
+                try:
+                    # 检查应用控制器状态
+                    if not self.app_controller.is_initialized:
+                        return gr.Dropdown(choices=[]), "❌ 应用未初始化"
+                    
+                    self.app_controller.refresh_models()
+                    ui_models = self.app_controller.get_models_for_ui()
+                    
+                    # 安全地构建选择列表
+                    choices = []
+                    for model in ui_models:
+                        if isinstance(model, dict) and not model.get("disabled", False):
+                            label = model.get("label", "Unknown")
+                            value = model.get("value", "")
+                            if label and value:
+                                choices.append((label, value))
+                    
+                    default_model = self.app_controller.get_default_model()
+                    return gr.Dropdown(choices=choices, value=default_model), "✅ 模型列表已刷新"
+                except Exception as e:
+                    self.logger.error(f"模型刷新失败: {e}")
+                    return gr.Dropdown(choices=[]), f"❌ 刷新失败: {str(e)}"
+            
+            def update_prompt(prompt_name):
+                try:
+                    if prompt_name:
+                        self.app_controller.set_active_prompt(prompt_name)
+                        active_prompt = self.app_controller.get_active_prompt()
+                        if active_prompt:
+                            return active_prompt.get("content", "")
+                    return self._get_default_system_prompt()
+                except Exception as e:
+                    return self._get_default_system_prompt()
+            
+            def chat_message(message, chat_record, current_model_id, case_input_value, output_value):
+                if not message.strip():
+                    return chat_record, "", gr.update()
+                
+                try:
+                    # 如果没有活跃会话，创建一个 / Create session if none exists
+                    if not self.current_session_id:
+                        # 使用当前输出内容作为初始内容，案例输入作为原始上下文 / Use current output as initial content, case input as original context
+                        initial_content = output_value if output_value else "暂无内容"
+                        original_context = case_input_value if case_input_value else "暂无原始案例"
+                        
+                        self.current_session_id = self.refinement_controller.start_refinement_session(
+                            initial_content=initial_content,
+                            user_id=self.current_user_id,
+                            original_context=original_context  # 传递原始案例输入
+                        )
+                    
+                    # 使用传入的模型ID，如果为空则使用默认模型 / Use passed model ID, fallback to default if empty
+                    model_id = current_model_id if current_model_id else self.app_controller.get_default_model()
+                    
+                    # 处理用户消息 / Process user message
+                    result = self.refinement_controller.process_user_message(
+                        message=message,
+                        session_id=self.current_session_id,
+                        model_id=model_id
+                    )
+                    
+                    if result["success"]:
+                        # 更新聊天记录 / Update chat record
+                        new_record = chat_record + f"\n\n用户: {message}\n助手: {result['response']}"
+                        
+                        # 返回更新的聊天记录、清空输入框、更新输出内容 / Return updated chat, clear input, update output
+                        return new_record, "", gr.update(value=result['modified_content'])
+                    else:
+                        # 错误处理 / Error handling
+                        error_msg = result.get('error', '未知错误')
+                        new_record = chat_record + f"\n\n用户: {message}\n助手: 抱歉，处理您的请求时出现错误：{error_msg}"
+                        return new_record, "", gr.update()
+                        
+                except Exception as e:
+                    self.logger.error(f"Chat message processing failed: {e}")
+                    error_record = chat_record + f"\n\n用户: {message}\n助手: 抱歉，系统出现错误：{str(e)}"
+                    return error_record, "", gr.update()
+            
+            def initialize_models():
+                try:
+                    # 检查应用控制器状态
+                    if not self.app_controller.is_initialized:
+                        return gr.Dropdown(choices=[]), "❌ 应用未初始化"
+                    
+                    # 初始化模型
+                    self.app_controller.initialize_models()
+                    ui_models = self.app_controller.get_models_for_ui()
+                    
+                    # 安全地构建选择列表
+                    choices = []
+                    for model in ui_models:
+                        if isinstance(model, dict) and not model.get("disabled", False):
+                            label = model.get("label", "Unknown")
+                            value = model.get("value", "")
+                            if label and value:
+                                choices.append((label, value))
+                    
+                    # 获取默认模型
+                    default_model = self.app_controller.get_default_model()
+                    
+                    # 确保默认模型在选择列表中
+                    if default_model and not any(choice[1] == default_model for choice in choices):
+                        choices.append((default_model, default_model))
+                    
+                    return gr.Dropdown(choices=choices, value=default_model), "✅ 模型初始化完成"
+                    
+                except Exception as e:
+                    self.logger.error(f"模型初始化失败: {e}")
+                    return gr.Dropdown(choices=[]), f"❌ 初始化失败: {str(e)}"
+            
+            def refresh_suggestions():
+                """刷新智能建议 / Refresh smart suggestions"""
+                return gr.update(value=self.generate_suggestions_html())
+            
+            def switch_user(selected_user):
+                """切换用户 / Switch user"""
+                if selected_user:
+                    self.current_user_id = selected_user
+                    # 重置会话 / Reset session
+                    self.current_session_id = None
+                    # 更新用户列表 / Update user list
+                    updated_choices = self._get_user_choices()
+                    return gr.update(choices=updated_choices, value=selected_user), f"✅ 已切换到用户: {selected_user}"
+                return gr.update(), "❌ 请选择用户"
+            
+            def create_new_user(user_name):
+                """创建新用户 / Create new user"""
+                if not user_name or not user_name.strip():
+                    return gr.update(), "❌ 请输入用户名", ""
+                
+                # 清理用户名 / Clean user name
+                clean_name = user_name.strip().replace(" ", "_")
+                
+                # 检查是否已存在 / Check if exists
+                existing_users = self._get_existing_users()
+                if clean_name in existing_users:
+                    return gr.update(), f"❌ 用户 {clean_name} 已存在", ""
+                
+                # 更新用户列表并切换 / Update user list and switch
+                self.current_user_id = clean_name
+                self.current_session_id = None
+                
+                updated_choices = self._get_user_choices()
+                return gr.update(choices=updated_choices, value=clean_name), f"✅ 已创建用户: {clean_name}", ""
+            
             # 事件绑定 / Event binding
+            user_selector.change(switch_user, [user_selector], [user_selector, status_text])
+            create_user_btn.click(create_new_user, [new_user_name], [user_selector, status_text, new_user_name])
+            generate_btn.click(generate_summary, [case_input, model_dropdown, prompt_editor], [output_text, status_text, suggestions_display])
+            refresh_btn.click(refresh_models, outputs=[model_dropdown, status_text])
+            prompt_selector.change(update_prompt, [prompt_selector], [prompt_editor])
+            send_btn.click(chat_message, [user_input, chat_display, model_dropdown, case_input, output_text], [chat_display, user_input, output_text])
+            add_detail_btn.click(lambda chat_record, model_id, case_val, output_val: chat_message("请添加更多细节和具体信息", chat_record, model_id, case_val, output_val), [chat_display, model_dropdown, case_input, output_text], [chat_display, user_input, output_text])
+            adjust_style_btn.click(lambda chat_record, model_id, case_val, output_val: chat_message("请调整语言风格，使其更加专业", chat_record, model_id, case_val, output_val), [chat_display, model_dropdown, case_input, output_text], [chat_display, user_input, output_text])
+            simplify_btn.click(lambda chat_record, model_id, case_val, output_val: chat_message("请简化内容，使其更加简洁明了", chat_record, model_id, case_val, output_val), [chat_display, model_dropdown, case_input, output_text], [chat_display, user_input, output_text])
+            refresh_suggestions_btn.click(refresh_suggestions, outputs=[suggestions_display])
+            interface.load(initialize_models, outputs=[model_dropdown, status_text])
 
-            # 生成总结事件 / Generate summary event
-            generate_btn.click(
-                fn=self._generate_summary,
-                inputs=[case_input, model_dropdown, prompt_editor],
-                outputs=[output_text, status_text],
-            )
-
-            # 刷新模型事件 / Refresh models event
-            refresh_btn.click(
-                fn=self._refresh_models, outputs=[model_dropdown, status_text]
-            )
-
-            # 提示词管理事件 / Prompt management events
-
-            # 提示词选择事件 / Prompt selection event
-            prompt_selector.change(
-                fn=self.prompt_ui.handle_prompt_selection,
-                inputs=[prompt_selector],
-                outputs=[prompt_editor, status_text],
-            )
-
-            # 新建提示词事件 / New prompt events
-            new_btn.click(fn=lambda: gr.Column(visible=True), outputs=[new_dialog])
-
-            create_btn.click(
-                fn=self.prompt_ui.handle_prompt_creation,
-                inputs=[name_input, content_input],
-                outputs=[status_text, new_dialog, prompt_selector],
-            )
-
-            cancel_btn.click(fn=lambda: gr.Column(visible=False), outputs=[new_dialog])
-
-            # 保存提示词事件 / Save prompt event
-            save_btn.click(
-                fn=self._save_current_prompt,
-                inputs=[prompt_selector, prompt_editor],
-                outputs=[status_text],
-            )
-
-            # 删除提示词事件 / Delete prompt event
-            delete_btn.click(
-                fn=self.prompt_ui.handle_prompt_deletion,
-                inputs=[prompt_selector],
-                outputs=[status_text, prompt_selector],
-            )
-
-            # 界面加载时初始化模型列表 / Initialize model list on interface load
-            interface.load(
-                fn=self._initialize_models, outputs=[model_dropdown, status_text]
-            )
-
-        self.interface = interface
         return interface
+    
+    def generate_suggestions_html(self) -> str:
+        """
+        生成智能建议的HTML显示 / Generate HTML display for smart suggestions
+        
+        Returns:
+            HTML格式的建议显示 / HTML formatted suggestions display
+        """
+        try:
+            if not self.current_session_id:
+                return "<p style='color: #666; font-style: italic;'>请先生成内容以获取智能建议... / Please generate content first to get smart suggestions...</p>"
+            
+            # 获取智能建议 / Get smart suggestions
+            suggestions = self.refinement_controller.generate_proactive_suggestions(self.current_session_id)
+            
+            if not suggestions:
+                return "<p style='color: #666; font-style: italic;'>暂无智能建议 / No smart suggestions available</p>"
+            
+            # 构建 HTML / Build HTML
+            html_parts = ["<div style='max-height: 200px; overflow-y: auto;'>"]
+            
+            for i, suggestion in enumerate(suggestions[:5]):  # 最多显示5个建议
+                confidence = suggestion.get('confidence', 0.5)
+                confidence_color = "#28a745" if confidence > 0.7 else "#ffc107" if confidence > 0.4 else "#6c757d"
+                confidence_text = f"置信度: {confidence:.1f}" if confidence > 0 else ""
+                
+                category_icons = {
+                    'content_addition': '➕',
+                    'style_adjustment': '🎨', 
+                    'structural': '🔄',
+                    'content_removal': '✂️',
+                    'format_modification': '📝',
+                    'language_optimization': '✨'
+                }
+                
+                icon = category_icons.get(suggestion.get('category', ''), '💡')
+                
+                html_parts.append(f"""
+                <div style='margin: 8px 0; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px; background: #f8f9fa;'>
+                    <div style='display: flex; align-items: center; margin-bottom: 5px;'>
+                        <span style='font-size: 16px; margin-right: 8px;'>{icon}</span>
+                        <strong style='color: #333;'>{suggestion.get('content', '未知建议')}</strong>
+                        <span style='margin-left: auto; font-size: 12px; color: {confidence_color};'>{confidence_text}</span>
+                    </div>
+                    <div style='font-size: 12px; color: #666; margin-left: 24px;'>
+                        {suggestion.get('reasoning', '')}
+                    </div>
+                    <button onclick='navigator.clipboard.writeText(\"{suggestion.get('content', '')}\"); this.innerText=\"已复制!\"; setTimeout(() => this.innerText=\"点击复制\", 2000);' 
+                            style='margin-top: 5px; margin-left: 24px; padding: 2px 8px; font-size: 11px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;'>
+                        点击复制
+                    </button>
+                </div>
+                """)
+            
+            html_parts.append("</div>")
+            
+            return "".join(html_parts)
+            
+        except Exception as e:
+            self.logger.error(f"生成智能建议 HTML失败: {e}")
+            return f"<p style='color: #dc3545;'>生成建议时出错: {str(e)}</p>"
+    
+    def _get_default_system_prompt(self) -> str:
+        """
+        获取默认系统提示词 / Get default system prompt
+        
+        Returns:
+            默认系统提示词 / Default system prompt
+        """
+        try:
+            # 尝试获取激活的系统提示词 / Try to get active system prompt
+            active_prompt = self.app_controller.get_active_prompt()
+            if active_prompt and active_prompt.get("content"):
+                return active_prompt["content"]
+            
+            # 如果没有激活的提示词，使用配置中的默认提示词 / If no active prompt, use default from config
+            return self.app_controller.config_manager.get_system_prompt()
+        except Exception as e:
+            self.logger.warning(f"获取系统提示词失败，使用默认值: {e} / Failed to get system prompt, using default: {e}")
+            # 返回一个简单的默认提示词 / Return a simple default prompt
+            return "你是一个专业的案例总结助手。请根据提供的历史参考信息和新的案例输入，生成一个结构化、专业的案例总结。"
+    
+    def _get_prompt_choices(self) -> List[Tuple[str, str]]:
+        """获取提示词选择列表 / Get prompt choices list"""
+        try:
+            prompts = self.app_controller.get_available_prompts()
+            choices = [(prompt.get("name", "Unknown"), prompt.get("name", "Unknown")) for prompt in prompts]
+            if not choices:
+                choices = [("default", "default")]
+            return choices
+        except Exception as e:
+            self.logger.warning(f"获取提示词列表失败: {e}")
+            return [("default", "default")]
+    
+    def _get_active_prompt_name(self) -> str:
+        """获取当前激活的提示词名称 / Get active prompt name"""
+        try:
+            active_prompt = self.app_controller.get_active_prompt()
+            if active_prompt:
+                return active_prompt.get("name", "default")
+            return "default"
+        except Exception as e:
+            self.logger.warning(f"获取激活提示词名称失败: {e}")
+            return "default"
+    
+    def _generate_user_id(self) -> str:
+        """
+        生成用户ID（基于会话）/ Generate user ID (session-based)
+        
+        Returns:
+            用户ID / User ID
+        """
+        # 生成一个唯一的会话ID作为用户标识 / Generate unique session ID as user identifier
+        session_uuid = str(uuid.uuid4())
+        # 使用前8位作为用户ID / Use first 8 characters as user ID
+        user_id = f"user_{session_uuid[:8]}"
+        self.logger.info(f"生成用户ID: {user_id}")
+        return user_id
+    
+    def _get_existing_users(self) -> list:
+        """获取已存在的用户列表 / Get existing users list"""
+        try:
+            from pathlib import Path
+            storage_path = Path("./user_preferences")
+            if not storage_path.exists():
+                return ["default_user"]
+            
+            users = ["default_user"]
+            for user_dir in storage_path.iterdir():
+                if user_dir.is_dir() and user_dir.name != "default_user":
+                    users.append(user_dir.name)
+            return users
+        except Exception as e:
+            self.logger.error(f"获取用户列表失败: {e}")
+            return ["default_user"]
+    
+    def _get_user_choices(self) -> list:
+        """获取用户选择列表 / Get user choices list"""
+        users = self._get_existing_users()
+        return [(user, user) for user in users]
 
     def _generate_summary(
         self, case_input: str, model_id: str, prompt_content: str
@@ -200,9 +534,6 @@ class GradioInterface:
             if not model_id:
                 return "", "❌ 错误：请选择一个模型 / Error: Please select a model"
 
-            # 更新状态 / Update status
-            status = "🔄 正在生成总结... / Generating summary..."
-
             # 调用应用控制器生成总结 / Call app controller to generate summary
             summary = self.app_controller.process_case_summary(
                 case_input=case_input,
@@ -214,21 +545,17 @@ class GradioInterface:
 
             return summary, "✅ 总结生成成功 / Summary generated successfully"
 
-        except CaseSummaryError as e:
+        except Exception as e:
             error_msg = f"❌ 生成失败: {str(e)} / Generation failed: {str(e)}"
             self.logger.error(f"案例总结生成失败: {e}")
             return "", error_msg
-        except Exception as e:
-            error_msg = f"❌ 未知错误: {str(e)} / Unknown error: {str(e)}"
-            self.logger.error(f"未知错误: {e}")
-            return "", error_msg
 
-    def _refresh_models(self) -> Tuple[gr.Dropdown, str]:
+    def _refresh_models(self) -> Tuple[List[Tuple[str, str]], str]:
         """
         刷新模型列表 / Refresh model list
 
         Returns:
-            (更新的下拉列表, 状态信息) / (Updated dropdown, status message)
+            (更新的选项列表, 状态信息) / (Updated choices list, status message)
         """
         try:
             # 刷新模型 / Refresh models
@@ -243,31 +570,28 @@ class GradioInterface:
                 if not model.get("disabled", False):
                     choices.append((model["label"], model["value"]))
 
-            # 获取默认模型 / Get default model
-            default_model = self.app_controller.get_default_model()
-
-            return (
-                gr.Dropdown(choices=choices, value=default_model),
-                "✅ 模型列表已刷新 / Model list refreshed",
-            )
+            return choices, "✅ 模型列表已刷新 / Model list refreshed"
 
         except Exception as e:
             error_msg = f"❌ 刷新失败: {str(e)} / Refresh failed: {str(e)}"
             self.logger.error(f"模型刷新失败: {e}")
-            return gr.Dropdown(choices=[]), error_msg
+            return [], error_msg
 
-    def _save_current_prompt(self, prompt_name: str, prompt_content: str) -> str:
+    def _refresh_models_simple(self) -> str:
         """
-        保存当前提示词 / Save current prompt
-
-        Args:
-            prompt_name: 提示词名称 / Prompt name
-            prompt_content: 提示词内容 / Prompt content
+        简化的模型刷新方法 / Simplified model refresh method
 
         Returns:
             状态信息 / Status message
         """
-        return self.prompt_ui.handle_prompt_update(prompt_name, prompt_content)
+        try:
+            # 刷新模型 / Refresh models
+            self.app_controller.refresh_models()
+            return "✅ 模型列表已刷新，请重新选择模型 / Model list refreshed, please reselect model"
+        except Exception as e:
+            error_msg = f"❌ 刷新失败: {str(e)} / Refresh failed: {str(e)}"
+            self.logger.error(f"模型刷新失败: {e}")
+            return error_msg
 
     def _initialize_models(self) -> Tuple[gr.Dropdown, str]:
         """
@@ -319,7 +643,7 @@ class GradioInterface:
             debug: 是否启用调试模式 / Whether to enable debug mode
         """
         if self.interface is None:
-            self.create_interface()
+            self.interface = self.create_interface()
 
         self.logger.info(
             f"启动Gradio界面: {server_name}:{server_port} / Launching Gradio interface: {server_name}:{server_port}"
@@ -328,7 +652,5 @@ class GradioInterface:
         self.interface.launch(
             server_name=server_name,
             server_port=server_port,
-            share=share,
-            debug=debug,
-            show_error=True,
+            share=share
         )

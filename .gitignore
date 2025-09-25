@@ -56,6 +56,10 @@ htmlcov/
 # Business data - do not commit actual business information
 history_references/
 
+# User interaction data - contains sensitive user communications
+data/
+user_preferences/
+
 # System prompts - only keep default, ignore user business prompts
 system_prompts/*
 !system_prompts/default.md

@@ -10,6 +10,9 @@ import uuid
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 
+from .llm_preference_learning import LLMBasedPreferenceLearning
+from .preference_learning_engine import ProactiveSuggestion
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,6 +28,13 @@ class RefinementController:
         """
         self.app_controller = app_controller
         self.active_sessions: Dict[str, Dict] = {}
+        
+        # 初始化LLM偏好学习引擎
+        if hasattr(app_controller, 'bedrock_client'):
+            self.llm_preference_learning = LLMBasedPreferenceLearning(app_controller.bedrock_client)
+        else:
+            self.llm_preference_learning = None
+            logger.warning("Bedrock client not available, preference learning disabled")
         
         logger.info("RefinementController initialized")
     
@@ -208,3 +218,178 @@ class RefinementController:
         except Exception as e:
             logger.error(f"Failed to revert to version: {e}")
             raise
+    
+    def generate_proactive_suggestions(self, session_id: str) -> List[Dict[str, Any]]:
+        """
+        生成智能主动建议 / Generate intelligent proactive suggestions
+        
+        Args:
+            session_id: 会话ID / Session ID
+            
+        Returns:
+            主动建议列表 / List of proactive suggestions
+        """
+        try:
+            session = self.active_sessions.get(session_id)
+            if not session:
+                logger.warning(f"Session not found: {session_id}")
+                return []
+            
+            logger.info(f"为会话 {session_id} 生成智能建议")
+            
+            if not self.llm_preference_learning:
+                logger.info("LLM preference learning not available, using default suggestions")
+                return self._generate_default_suggestions(session)
+            
+            # 获取当前激活的prompt名称
+            active_prompt_info = self.app_controller.get_active_prompt()
+            prompt_name = active_prompt_info.get('name', 'default') if active_prompt_info else 'default'
+            
+            logger.info(f"使用prompt: {prompt_name}")
+            
+            # 生成基于偏好的智能建议
+            suggestions = self.llm_preference_learning.generate_proactive_suggestions(
+                user_id=session["user_id"],
+                prompt_name=prompt_name,
+                current_content=session["current_content"],
+                context=session.get("original_context", "")
+            )
+            
+            logger.info(f"LLM偏好学习生成了 {len(suggestions)} 个建议")
+            
+            # 转换为UI友好的格式
+            result = [
+                {
+                    "id": suggestion.id,
+                    "content": suggestion.content,
+                    "category": suggestion.category,
+                    "confidence": suggestion.confidence,
+                    "reasoning": suggestion.reasoning
+                }
+                for suggestion in suggestions
+            ]
+            
+            logger.info(f"转换后的建议数量: {len(result)}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to generate proactive suggestions: {e}", exc_info=True)
+            # 发生异常时，回退到默认建议
+            session = self.active_sessions.get(session_id)
+            if session:
+                return self._generate_default_suggestions(session)
+            return []
+    
+    def _generate_default_suggestions(self, session: Dict) -> List[Dict[str, Any]]:
+        """
+        生成默认建议（当LLM偏好学习不可用时）/ Generate default suggestions (when LLM preference learning is unavailable)
+        
+        Args:
+            session: 会话对象 / Session object
+            
+        Returns:
+            默认建议列表 / List of default suggestions
+        """
+        current_content = session.get("current_content", "")
+        content_length = len(current_content)
+        
+        suggestions = []
+        
+        # 基于内容长度的建议
+        if content_length < 500:
+            suggestions.append({
+                "id": "default_add_detail",
+                "content": "建议添加更多详细信息和具体案例",
+                "category": "content_addition",
+                "confidence": 0.7,
+                "reasoning": "当前内容较短，可以通过添加细节来丰富内容"
+            })
+        
+        if content_length > 2000:
+            suggestions.append({
+                "id": "default_simplify",
+                "content": "建议精简内容，突出重点信息",
+                "category": "content_removal",
+                "confidence": 0.6,
+                "reasoning": "当前内容较长，可以通过精简来提高可读性"
+            })
+        
+        # 通用建议
+        suggestions.extend([
+            {
+                "id": "default_structure",
+                "content": "建议优化内容结构，增强逻辑性",
+                "category": "structural",
+                "confidence": 0.5,
+                "reasoning": "良好的结构有助于提高内容的可读性"
+            },
+            {
+                "id": "default_style",
+                "content": "建议调整语言风格，使其更加专业",
+                "category": "style_adjustment",
+                "confidence": 0.5,
+                "reasoning": "专业的语言风格有助于提升内容质量"
+            }
+        ])
+        
+        return suggestions[:3]  # 返回最多3个默认建议
+    
+    def update_user_preferences(self, session_id: str, interaction_data: Dict) -> bool:
+        """
+        更新用户偏好 / Update user preferences
+        
+        Args:
+            session_id: 会话ID / Session ID
+            interaction_data: 交互数据 / Interaction data
+            
+        Returns:
+            更新是否成功 / Whether update was successful
+        """
+        try:
+            session = self.active_sessions.get(session_id)
+            if not session or not self.llm_preference_learning:
+                return False
+            
+            # 获取当前激活的prompt名称
+            active_prompt_info = self.app_controller.get_active_prompt()
+            prompt_name = active_prompt_info.get('name', 'default') if active_prompt_info else 'default'
+            
+            # 更新用户偏好
+            return self.llm_preference_learning.update_user_preferences(
+                user_id=session["user_id"],
+                prompt_name=prompt_name,
+                interaction_data=interaction_data
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to update user preferences: {e}")
+            return False
+    
+    def get_learning_insights(self, session_id: str) -> Dict[str, Any]:
+        """
+        获取学习洞察 / Get learning insights
+        
+        Args:
+            session_id: 会话ID / Session ID
+            
+        Returns:
+            学习洞察信息 / Learning insights information
+        """
+        try:
+            session = self.active_sessions.get(session_id)
+            if not session or not self.llm_preference_learning:
+                return {}
+            
+            # 获取当前激活的prompt名称
+            active_prompt_info = self.app_controller.get_active_prompt()
+            prompt_name = active_prompt_info.get('name', 'default') if active_prompt_info else 'default'
+            
+            # 获取学习洞察
+            return self.llm_preference_learning.get_learning_insights(
+                user_id=session["user_id"],
+                prompt_name=prompt_name
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to get learning insights: {e}")
+            return {}

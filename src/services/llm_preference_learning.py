@@ -12,6 +12,7 @@ from datetime import datetime
 
 from ..models.refinement_models import UserPreferenceProfile
 from ..clients.bedrock_client import BedrockClient
+from .preference_learning_engine import PreferenceLearningEngine, ProactiveSuggestion
 
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class LLMBasedPreferenceLearning:
         """
         self.bedrock_client = bedrock_client
         self.preference_prompt_template = self._initialize_preference_prompt_template()
+        self.preference_engine = PreferenceLearningEngine()
         
         logger.info("LLM偏好学习引擎初始化完成")
     
@@ -324,4 +326,75 @@ class LLMBasedPreferenceLearning:
             
         except Exception as e:
             logger.error(f"获取偏好学习统计失败: {user_id}, 错误: {e}")
+            return {}
+    
+    def generate_proactive_suggestions(self, user_id: str, prompt_name: str, 
+                                     current_content: str, context: str = "") -> List[ProactiveSuggestion]:
+        """
+        生成智能主动建议 / Generate intelligent proactive suggestions
+        
+        Args:
+            user_id: 用户ID / User ID
+            prompt_name: 提示词名称 / Prompt name
+            current_content: 当前内容 / Current content
+            context: 上下文信息 / Context information
+            
+        Returns:
+            主动建议列表 / List of proactive suggestions
+        """
+        try:
+            # 获取用户偏好档案
+            profile = self.preference_engine.get_user_preference_profile(user_id, prompt_name)
+            
+            # 生成个性化指引
+            guidance = self.preference_engine.generate_personalized_guidance(
+                user_id, prompt_name, current_content, context
+            )
+            
+            # 返回主动建议
+            return guidance.get('proactive_suggestions', [])
+            
+        except Exception as e:
+            logger.error(f"生成主动建议失败: {user_id}/{prompt_name}, 错误: {e}")
+            return []
+    
+    def update_user_preferences(self, user_id: str, prompt_name: str, 
+                               interaction_data: Dict) -> bool:
+        """
+        更新用户偏好 / Update user preferences
+        
+        Args:
+            user_id: 用户ID / User ID
+            prompt_name: 提示词名称 / Prompt name
+            interaction_data: 交互数据 / Interaction data
+            
+        Returns:
+            更新是否成功 / Whether update was successful
+        """
+        try:
+            self.preference_engine.update_preferences_from_interaction(
+                user_id, prompt_name, interaction_data
+            )
+            return True
+            
+        except Exception as e:
+            logger.error(f"更新用户偏好失败: {user_id}/{prompt_name}, 错误: {e}")
+            return False
+    
+    def get_learning_insights(self, user_id: str, prompt_name: str) -> Dict[str, Any]:
+        """
+        获取学习洞察 / Get learning insights
+        
+        Args:
+            user_id: 用户ID / User ID
+            prompt_name: 提示词名称 / Prompt name
+            
+        Returns:
+            学习洞察信息 / Learning insights information
+        """
+        try:
+            return self.preference_engine.generate_learning_insights(user_id, prompt_name)
+            
+        except Exception as e:
+            logger.error(f"获取学习洞察失败: {user_id}/{prompt_name}, 错误: {e}")
             return {}

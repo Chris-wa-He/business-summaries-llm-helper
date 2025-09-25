@@ -7,6 +7,8 @@ Web user interface built with Gradio
 
 import gradio as gr
 import logging
+import hashlib
+import uuid
 from typing import Optional, Tuple, List
 
 try:
@@ -35,6 +37,9 @@ class GradioInterface:
         
         # 当前优化会话ID / Current refinement session ID
         self.current_session_id = None
+        
+        # 当前用户ID / Current user ID
+        self.current_user_id = "default_user"
 
         # 获取应用配置 / Get app configuration
         self.app_config = app_controller.get_app_config()
@@ -56,6 +61,24 @@ class GradioInterface:
             gr.Markdown(
                 f"# {self.app_config.get('title', '案例总结生成器 / Case Summary Generator')}"
             )
+            
+            # 用户选择区域 / User selection area
+            with gr.Row():
+                with gr.Column(scale=3):
+                    user_selector = gr.Dropdown(
+                        label="选择用户 / Select User",
+                        choices=self._get_user_choices(),
+                        value="default_user",
+                        interactive=True,
+                        allow_custom_value=True
+                    )
+                with gr.Column(scale=1):
+                    new_user_name = gr.Textbox(
+                        placeholder="输入新用户名... / Enter new user name...",
+                        container=False,
+                        scale=2
+                    )
+                    create_user_btn = gr.Button("新建用户 / Create User", size="sm", scale=1)
 
             # 主要功能区域 / Main functional area
             with gr.Row():
@@ -123,10 +146,19 @@ class GradioInterface:
                     with gr.Group():
                         gr.Markdown("### 💬 交互优化 / Interactive Refinement")
                         
+                        # 智能建议区域 / Smart suggestions area
+                        with gr.Group():
+                            gr.Markdown("#### 🎯 智能建议 / Smart Suggestions")
+                            suggestions_display = gr.HTML(
+                                value="<p style='color: #666; font-style: italic;'>生成内容后将显示智能建议... / Smart suggestions will appear after content generation...</p>",
+                                label=""
+                            )
+                            refresh_suggestions_btn = gr.Button("🔄 刷新建议 / Refresh Suggestions", size="sm")
+                        
                         # 简化的聊天区域
                         chat_display = gr.Textbox(
                             label="对话记录 / Chat Record",
-                            lines=8,
+                            lines=6,
                             interactive=False,
                             placeholder="对话记录将在这里显示... / Chat records will be displayed here..."
                         )
@@ -151,9 +183,9 @@ class GradioInterface:
             def generate_summary(case_input, model_id, prompt_content):
                 try:
                     if not case_input or not case_input.strip():
-                        return "", "❌ 案例输入不能为空"
+                        return "", "❌ 案例输入不能为空", gr.update()
                     if not model_id:
-                        return "", "❌ 请选择一个模型"
+                        return "", "❌ 请选择一个模型", gr.update()
                     
                     # 重置优化会话 / Reset refinement session
                     self.current_session_id = None
@@ -163,9 +195,21 @@ class GradioInterface:
                         model_id=model_id,
                         custom_system_prompt=prompt_content.strip() if prompt_content.strip() else None,
                     )
-                    return summary, "✅ 生成成功"
+                    
+                    # 启动优化会话并生成智能建议 / Start refinement session and generate smart suggestions
+                    if summary:
+                        self.current_session_id = self.refinement_controller.start_refinement_session(
+                            initial_content=summary,
+                            user_id=self.current_user_id,
+                            original_context=case_input
+                        )
+                        suggestions_html = self.generate_suggestions_html()
+                    else:
+                        suggestions_html = "<p style='color: #666;'>生成失败，无法提供建议</p>"
+                    
+                    return summary, "✅ 生成成功", gr.update(value=suggestions_html)
                 except Exception as e:
-                    return "", f"❌ 错误: {str(e)}"
+                    return "", f"❌ 错误: {str(e)}", gr.update()
             
             def refresh_models():
                 try:
@@ -215,7 +259,7 @@ class GradioInterface:
                         
                         self.current_session_id = self.refinement_controller.start_refinement_session(
                             initial_content=initial_content,
-                            user_id="default_user",
+                            user_id=self.current_user_id,
                             original_context=original_context  # 传递原始案例输入
                         )
                     
@@ -278,17 +322,116 @@ class GradioInterface:
                     self.logger.error(f"模型初始化失败: {e}")
                     return gr.Dropdown(choices=[]), f"❌ 初始化失败: {str(e)}"
             
+            def refresh_suggestions():
+                """刷新智能建议 / Refresh smart suggestions"""
+                return gr.update(value=self.generate_suggestions_html())
+            
+            def switch_user(selected_user):
+                """切换用户 / Switch user"""
+                if selected_user:
+                    self.current_user_id = selected_user
+                    # 重置会话 / Reset session
+                    self.current_session_id = None
+                    # 更新用户列表 / Update user list
+                    updated_choices = self._get_user_choices()
+                    return gr.update(choices=updated_choices, value=selected_user), f"✅ 已切换到用户: {selected_user}"
+                return gr.update(), "❌ 请选择用户"
+            
+            def create_new_user(user_name):
+                """创建新用户 / Create new user"""
+                if not user_name or not user_name.strip():
+                    return gr.update(), "❌ 请输入用户名", ""
+                
+                # 清理用户名 / Clean user name
+                clean_name = user_name.strip().replace(" ", "_")
+                
+                # 检查是否已存在 / Check if exists
+                existing_users = self._get_existing_users()
+                if clean_name in existing_users:
+                    return gr.update(), f"❌ 用户 {clean_name} 已存在", ""
+                
+                # 更新用户列表并切换 / Update user list and switch
+                self.current_user_id = clean_name
+                self.current_session_id = None
+                
+                updated_choices = self._get_user_choices()
+                return gr.update(choices=updated_choices, value=clean_name), f"✅ 已创建用户: {clean_name}", ""
+            
             # 事件绑定 / Event binding
-            generate_btn.click(generate_summary, [case_input, model_dropdown, prompt_editor], [output_text, status_text])
+            user_selector.change(switch_user, [user_selector], [user_selector, status_text])
+            create_user_btn.click(create_new_user, [new_user_name], [user_selector, status_text, new_user_name])
+            generate_btn.click(generate_summary, [case_input, model_dropdown, prompt_editor], [output_text, status_text, suggestions_display])
             refresh_btn.click(refresh_models, outputs=[model_dropdown, status_text])
             prompt_selector.change(update_prompt, [prompt_selector], [prompt_editor])
             send_btn.click(chat_message, [user_input, chat_display, model_dropdown, case_input, output_text], [chat_display, user_input, output_text])
             add_detail_btn.click(lambda chat_record, model_id, case_val, output_val: chat_message("请添加更多细节和具体信息", chat_record, model_id, case_val, output_val), [chat_display, model_dropdown, case_input, output_text], [chat_display, user_input, output_text])
             adjust_style_btn.click(lambda chat_record, model_id, case_val, output_val: chat_message("请调整语言风格，使其更加专业", chat_record, model_id, case_val, output_val), [chat_display, model_dropdown, case_input, output_text], [chat_display, user_input, output_text])
             simplify_btn.click(lambda chat_record, model_id, case_val, output_val: chat_message("请简化内容，使其更加简洁明了", chat_record, model_id, case_val, output_val), [chat_display, model_dropdown, case_input, output_text], [chat_display, user_input, output_text])
+            refresh_suggestions_btn.click(refresh_suggestions, outputs=[suggestions_display])
             interface.load(initialize_models, outputs=[model_dropdown, status_text])
 
         return interface
+    
+    def generate_suggestions_html(self) -> str:
+        """
+        生成智能建议的HTML显示 / Generate HTML display for smart suggestions
+        
+        Returns:
+            HTML格式的建议显示 / HTML formatted suggestions display
+        """
+        try:
+            if not self.current_session_id:
+                return "<p style='color: #666; font-style: italic;'>请先生成内容以获取智能建议... / Please generate content first to get smart suggestions...</p>"
+            
+            # 获取智能建议 / Get smart suggestions
+            suggestions = self.refinement_controller.generate_proactive_suggestions(self.current_session_id)
+            
+            if not suggestions:
+                return "<p style='color: #666; font-style: italic;'>暂无智能建议 / No smart suggestions available</p>"
+            
+            # 构建 HTML / Build HTML
+            html_parts = ["<div style='max-height: 200px; overflow-y: auto;'>"]
+            
+            for i, suggestion in enumerate(suggestions[:5]):  # 最多显示5个建议
+                confidence = suggestion.get('confidence', 0.5)
+                confidence_color = "#28a745" if confidence > 0.7 else "#ffc107" if confidence > 0.4 else "#6c757d"
+                confidence_text = f"置信度: {confidence:.1f}" if confidence > 0 else ""
+                
+                category_icons = {
+                    'content_addition': '➕',
+                    'style_adjustment': '🎨', 
+                    'structural': '🔄',
+                    'content_removal': '✂️',
+                    'format_modification': '📝',
+                    'language_optimization': '✨'
+                }
+                
+                icon = category_icons.get(suggestion.get('category', ''), '💡')
+                
+                html_parts.append(f"""
+                <div style='margin: 8px 0; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px; background: #f8f9fa;'>
+                    <div style='display: flex; align-items: center; margin-bottom: 5px;'>
+                        <span style='font-size: 16px; margin-right: 8px;'>{icon}</span>
+                        <strong style='color: #333;'>{suggestion.get('content', '未知建议')}</strong>
+                        <span style='margin-left: auto; font-size: 12px; color: {confidence_color};'>{confidence_text}</span>
+                    </div>
+                    <div style='font-size: 12px; color: #666; margin-left: 24px;'>
+                        {suggestion.get('reasoning', '')}
+                    </div>
+                    <button onclick='navigator.clipboard.writeText(\"{suggestion.get('content', '')}\"); this.innerText=\"已复制!\"; setTimeout(() => this.innerText=\"点击复制\", 2000);' 
+                            style='margin-top: 5px; margin-left: 24px; padding: 2px 8px; font-size: 11px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer;'>
+                        点击复制
+                    </button>
+                </div>
+                """)
+            
+            html_parts.append("</div>")
+            
+            return "".join(html_parts)
+            
+        except Exception as e:
+            self.logger.error(f"生成智能建议 HTML失败: {e}")
+            return f"<p style='color: #dc3545;'>生成建议时出错: {str(e)}</p>"
     
     def _get_default_system_prompt(self) -> str:
         """
@@ -332,6 +475,42 @@ class GradioInterface:
         except Exception as e:
             self.logger.warning(f"获取激活提示词名称失败: {e}")
             return "default"
+    
+    def _generate_user_id(self) -> str:
+        """
+        生成用户ID（基于会话）/ Generate user ID (session-based)
+        
+        Returns:
+            用户ID / User ID
+        """
+        # 生成一个唯一的会话ID作为用户标识 / Generate unique session ID as user identifier
+        session_uuid = str(uuid.uuid4())
+        # 使用前8位作为用户ID / Use first 8 characters as user ID
+        user_id = f"user_{session_uuid[:8]}"
+        self.logger.info(f"生成用户ID: {user_id}")
+        return user_id
+    
+    def _get_existing_users(self) -> list:
+        """获取已存在的用户列表 / Get existing users list"""
+        try:
+            from pathlib import Path
+            storage_path = Path("./user_preferences")
+            if not storage_path.exists():
+                return ["default_user"]
+            
+            users = ["default_user"]
+            for user_dir in storage_path.iterdir():
+                if user_dir.is_dir() and user_dir.name != "default_user":
+                    users.append(user_dir.name)
+            return users
+        except Exception as e:
+            self.logger.error(f"获取用户列表失败: {e}")
+            return ["default_user"]
+    
+    def _get_user_choices(self) -> list:
+        """获取用户选择列表 / Get user choices list"""
+        users = self._get_existing_users()
+        return [(user, user) for user in users]
 
     def _generate_summary(
         self, case_input: str, model_id: str, prompt_content: str
